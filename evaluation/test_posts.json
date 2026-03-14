@@ -1,0 +1,42 @@
+[
+  {
+    "post": "Just launched our new AI model - it's trained on 100B tokens and achieves SOTA on multiple benchmarks! #AI #ML #MachineLearning",
+    "expected_keywords": ["AI", "model", "benchmarks", "training"]
+  },
+  {
+    "post": "Deep learning transformers have revolutionized NLP. The attention mechanism is elegantly simple yet powerful.",
+    "expected_keywords": ["deep learning", "transformers", "NLP", "attention"]
+  },
+  {
+    "post": "Retrieval Augmented Generation combines the best of both worlds - retrieval and generation!",
+    "expected_keywords": ["RAG", "retrieval", "generation"]
+  },
+  {
+    "post": "Vector embeddings enable semantic search across massive document collections efficiently.",
+    "expected_keywords": ["embeddings", "semantic search", "similarity"]
+  },
+  {
+    "post": "FAISS is a powerful library for similarity search at scale. Perfect for building RAG systems.",
+    "expected_keywords": ["FAISS", "vector search", "scalability"]
+  },
+  {
+    "post": "LLMs like GPT-4 show remarkable few-shot learning capabilities. Prompt engineering is becoming a critical skill.",
+    "expected_keywords": ["LLM", "few-shot", "prompt", "GPT"]
+  },
+  {
+    "post": "Implementing guardrails for AI systems is crucial for safe and responsible deployment.",
+    "expected_keywords": ["guardrails", "safety", "AI governance"]
+  },
+  {
+    "post": "Observability and tracing are essential for debugging complex machine learning pipelines in production.",
+    "expected_keywords": ["monitoring", "observability", "tracing", "production"]
+  },
+  {
+    "post": "OpenAI's moderation API helps detect and prevent harmful content at scale.",
+    "expected_keywords": ["moderation", "safety", "content policy"]
+  },
+  {
+    "post": "Building production-grade AI systems requires clean code, proper testing, and comprehensive documentation.",
+    "expected_keywords": ["production", "testing", "documentation"]
+  }
+]
