@@ -17,14 +17,18 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
-    env:
-      # Optional: set in repo Variables or Secrets for production backend URL
-      REACT_APP_API_BASE_URL: ${{ vars.REACT_APP_API_BASE_URL || secrets.REACT_APP_API_BASE_URL || 'http://localhost:8000' }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
+
+      # Optional: set repo Variable REACT_APP_API_BASE_URL to your production backend URL so the frontend points to it
+      - name: Set frontend env for production API URL
+        run: |
+          if [ -n "${{ vars.REACT_APP_API_BASE_URL }}" ]; then
+            echo "REACT_APP_API_BASE_URL=${{ vars.REACT_APP_API_BASE_URL }}" >> frontend/.env
+          fi
 
       - name: Build And Deploy
         id: builddeploy
