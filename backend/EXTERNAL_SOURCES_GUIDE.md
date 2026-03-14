@@ -21,6 +21,24 @@ The system now supports searching across **multiple free external sources** in a
 
 If you don't configure any external APIs, the system will use mock data automatically.
 
+**When is mock data used?**  
+Mock data is used **only when every external source returns no results** in a single request:
+
+- **Reddit** – returns `[]` if `REDDIT_CLIENT_ID` or `REDDIT_CLIENT_SECRET` is missing, or on API error.
+- **Twitter** – returns `[]` if `TWITTER_BEARER_TOKEN` is missing, or on API error.
+- **NewsData.io** – is always called (no key required); returns `[]` on API error or empty response.
+- **NewsAPI** – returns `[]` if `NEWSAPI_API_KEY` is missing, or on API error.
+- **Guardian** – returns `[]` if `GUARDIAN_API_KEY` is missing, or on API error.
+
+If **all** of these yield zero results, the code logs `"No external source APIs available - using mock data"` and fills the response with synthetic results (platforms: newsdata, reddit, newsapi, twitter, guardian) so the Q&A flow still has sources to cite.
+
+**How to verify:**  
+From the `backend` directory, run:
+```bash
+python -m scripts.verify_mock_fallback
+```
+With no API keys set, you should see mock-style results (query in titles, all five platforms). With at least one valid key and a successful API call, you'll see real results instead.
+
 ### 2. Enable NewsData.io (Recommended)
 
 You already have a free key in `.env`:

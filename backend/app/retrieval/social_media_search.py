@@ -91,7 +91,8 @@ class ExternalSourcesSearch:
             except Exception as e:
                 logger.warning(f"✗ Guardian search failed: {e}")
         
-        # Fallback: Mock results if no APIs available
+        # Fallback: Mock results only when every source returned no results
+        # (e.g. no API keys configured, or all APIs failed/rate-limited)
         if not all_results:
             logger.warning("No external source APIs available - using mock data")
             all_results = await self._mock_results(query, num_results)
