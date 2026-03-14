@@ -11,22 +11,23 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config import settings
-from app.api.routes import router
 from app.agents.post_explainer_agent import PostExplainerAgent
-
-# Global agent instance
-agent = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage app startup and shutdown."""
-    global agent
     
     # Startup
-    agent = PostExplainerAgent()
-    await agent.initialize()
-    print("✓ Agent initialized")
+    try:
+        agent = PostExplainerAgent()
+        await agent.initialize()
+        app.state.agent = agent
+        print("✓ Agent initialized")
+    except Exception as e:
+        print(f"✗ Agent initialization failed: {e}")
+        app.state.agent = None
+        raise
     
     yield
     
@@ -51,7 +52,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
+# Import routes after app is created to avoid circular imports
+from app.api.routes import router
 app.include_router(router)
 
 

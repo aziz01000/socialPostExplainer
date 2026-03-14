@@ -8,11 +8,15 @@ class ModelRouter:
     """Route LLM calls to appropriate provider."""
     
     def __init__(self):
-        if settings.llm_provider == "openai":
+        provider = settings.llm_provider.lower().strip()
+        
+        if provider == "openai":
             self.provider = OpenAIProvider()
-        elif settings.llm_provider == "gemini":
+            print(f"✓ ModelRouter initialized with OpenAI provider")
+        elif provider == "gemini":
             from app.llm.gemini_provider import GeminiProvider
             self.provider = GeminiProvider()
+            print(f"✓ ModelRouter initialized with Gemini provider")
         else:
             raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")
     

@@ -1,6 +1,7 @@
 """API routes."""
 
-from fastapi import APIRouter, HTTPException, Depends
+import time
+from fastapi import APIRouter, HTTPException, Request
 from app.models.schemas import ExplainRequest, ExplainResponse, HealthResponse
 from app.config import settings
 
@@ -17,7 +18,7 @@ async def health_check():
 
 
 @router.post("/explain", response_model=ExplainResponse)
-async def explain_post(request: ExplainRequest):
+async def explain_post(request: ExplainRequest, req: Request):
     """
     Explain a social media post with retrieval and LLM generation.
     
@@ -25,12 +26,30 @@ async def explain_post(request: ExplainRequest):
     - **image_url**: Optional image URL for vision analysis
     - **context_limit**: Max number of context sources (1-20)
     """
+    # Get agent from app state
+    agent = req.app.state.agent
+    
+    if not agent:
+        raise HTTPException(status_code=500, detail="Agent not initialized")
+    
     try:
-        # Placeholder - to be implemented with agent
-        return ExplainResponse(
-            explanation=["Explanation coming soon"],
-            sources=[],
-            processing_time_ms=0.0
+        start_time = time.time()
+        
+        # Run agent
+        result = await agent.explain_post(
+            post_content=request.post_content,
+            image_url=request.image_url
         )
+        
+        processing_time = (time.time() - start_time) * 1000  # Convert to ms
+        
+        return ExplainResponse(
+            explanation=result["explanation"],
+            sources=result["sources"][:request.context_limit],
+            image_analysis=result.get("image_analysis"),
+            processing_time_ms=processing_time
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
