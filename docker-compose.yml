@@ -10,10 +10,14 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DEBUG=false
+      - PHOENIX_ENABLED=${PHOENIX_ENABLED:-true}
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006
     volumes:
       - ./backend/data:/app/data
     networks:
       - app-network
+    depends_on:
+      - phoenix
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -31,6 +35,14 @@ services:
       - REACT_APP_API_BASE_URL=http://localhost:8000
     depends_on:
       - backend
+    networks:
+      - app-network
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6006:6006"
+      - "4317:4317"
     networks:
       - app-network
 
