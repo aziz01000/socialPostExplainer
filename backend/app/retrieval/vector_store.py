@@ -11,14 +11,23 @@ from app.llm.model_router import ModelRouter
 class VectorStore:
     """FAISS-based vector store."""
     
-    def __init__(self, data_dir: str = "data"):
+    def __init__(self, data_dir: str = None):
         self.index = None
         self.documents = []
         self.model_router = ModelRouter()
         self.embedding_dim = 1536  # text-embedding-3-small dimension
+        
+        # Use absolute path relative to backend root, not current working directory
+        if data_dir is None:
+            # Get backend root directory (go up from app/retrieval/vector_store.py)
+            backend_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            data_dir = os.path.join(backend_root, "data")
+        
         self.data_dir = data_dir
         self.index_path = os.path.join(data_dir, "faiss.index")
         self.docs_path = os.path.join(data_dir, "documents.json")
+        
+        print(f"🗂️  VectorStore initialized with data_dir: {self.data_dir}")
     
     async def initialize(self):
         """Initialize FAISS index."""
@@ -27,14 +36,36 @@ class VectorStore:
         # Try loading existing index
         if os.path.exists(self.index_path) and os.path.exists(self.docs_path):
             try:
+                print(f"📂 Found index files, attempting to load...")
                 self.index = faiss.read_index(self.index_path)
                 with open(self.docs_path, 'r') as f:
                     data = json.load(f)
                     self.documents = data.get("documents", [])
-                print(f"✓ Loaded existing index with {len(self.documents)} documents")
+                
+                # Load embedding dimension from metadata if available
+                metadata_path = os.path.join(self.data_dir, "metadata.json")
+                if os.path.exists(metadata_path):
+                    try:
+                        with open(metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                            loaded_dim = metadata.get("embedding_dim", self.embedding_dim)
+                            self.embedding_dim = loaded_dim
+                            print(f"📊 Loaded embedding_dim from metadata: {loaded_dim}")
+                    except Exception as e:
+                        print(f"⚠️  Failed to load metadata: {e}")
+                
+                print(f"✓ Loaded existing FAISS index:")
+                print(f"   Documents: {len(self.documents)}")
+                print(f"   Vectors in index: {self.index.ntotal}")
+                print(f"   Embedding dimension: {self.embedding_dim}")
+                
+                if self.index.ntotal == 0:
+                    print(f"❌ WARNING: FAISS index has 0 vectors!")
+                
                 return
             except Exception as e:
-                print(f"Failed to load existing index: {e}")
+                print(f"❌ Failed to load existing index: {e}")
+                print(f"   Attempting to create new index...")
         
         # Create new index
         self.index = faiss.IndexFlatL2(self.embedding_dim)
@@ -51,43 +82,6 @@ class VectorStore:
                 print(f"Failed to load documents: {e}")
         
         print("✓ Created new FAISS index (empty)")
-    
-    async def _add_sample_documents(self):
-        """Add sample documents for testing."""
-        sample_docs = [
-            {
-                "id": 1,
-                "title": "Understanding RAG Systems",
-                "content": "Retrieval Augmented Generation (RAG) combines retrieval and generation. It retrieves relevant documents and uses them as context for generating responses.",
-                "url": "https://example.com/rag"
-            },
-            {
-                "id": 2,
-                "title": "What is FAISS?",
-                "content": "FAISS (Facebook AI Similarity Search) is a library for efficient similarity search and clustering of dense vectors. It handles large-scale similarity search.",
-                "url": "https://example.com/faiss"
-            },
-            {
-                "id": 3,
-                "title": "Embeddings Explained",
-                "content": "Text embeddings convert text into numerical vectors. They capture semantic meaning, allowing similar texts to have similar vector representations.",
-                "url": "https://example.com/embeddings"
-            },
-            {
-                "id": 4,
-                "title": "Vector Search Basics",
-                "content": "Vector search finds similar items by comparing their vector representations. It's faster than keyword search for semantic retrieval.",
-                "url": "https://example.com/vector-search"
-            },
-            {
-                "id": 5,
-                "title": "LLM Context Windows",
-                "content": "Large language models have context windows limiting input size. RAG helps by providing only the most relevant context.",
-                "url": "https://example.com/context-windows"
-            }
-        ]
-        
-        await self.add_documents(sample_docs)
     
     async def add_documents(self, documents: List[Dict]) -> None:
         """Add documents to vector store."""
@@ -119,6 +113,7 @@ class VectorStore:
         """
         if self.index is None or self.index.ntotal == 0:
             # Fallback: text-based search
+            print(f"⚠️  FAISS not available (ntotal={self.index.ntotal if self.index else 'None'}), using text search")
             return self._text_search(query, k)
         
         try:
@@ -126,8 +121,13 @@ class VectorStore:
             query_embeddings = await self.model_router.generate_embeddings([query])
             query_array = np.array(query_embeddings).astype('float32')
             
+            print(f"🔍 Searching FAISS with query embedding shape: {query_array.shape}")
+            print(f"   Index has {self.index.ntotal} vectors with dimension {self.embedding_dim}")
+            
             # Search - FAISS returns distances (lower is better for L2)
             distances, indices = self.index.search(query_array, min(k, self.index.ntotal))
+            
+            print(f"✓ FAISS search returned {len(indices[0])} results")
             
             # Build results with relevance scores
             results = []
@@ -139,9 +139,10 @@ class VectorStore:
                     relevance_score = 1.0 - (dist / (max_distance + 1e-6))
                     results.append((self.documents[idx], relevance_score))
             
+            print(f"✓ FAISS returned {len(results)} documents")
             return results
         except Exception as e:
-            print(f"Embedding search failed: {e}, falling back to text search")
+            print(f"❌ Embedding search failed: {e}, falling back to text search")
             return self._text_search(query, k)
     
     def _text_search(self, query: str, k: int = 5) -> List[Tuple[Dict, float]]:

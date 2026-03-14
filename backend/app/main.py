@@ -25,20 +25,34 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("Starting application...")
         from app.agents.post_explainer_agent import PostExplainerAgent
+        from app.agents.social_media_qa_agent import SocialMediaQAAgent
         
+        # Initialize Post Explainer Agent
         agent = PostExplainerAgent()
         await agent.initialize()
         app.state.agent = agent
-        logger.info("✓ Agent initialized and ready")
+        logger.info("✓ Post Explainer Agent initialized and ready")
+        
+        # Initialize QA Agent
+        qa_agent = SocialMediaQAAgent()
+        await qa_agent.initialize()
+        app.state.qa_agent = qa_agent
+        logger.info("✓ Social Media QA Agent initialized and ready")
     except Exception as e:
         logger.error(f"✗ Agent initialization failed: {e}", exc_info=True)
         app.state.agent = None
+        app.state.qa_agent = None
         raise
     
     yield
     
     # Shutdown
-    logger.info("✓ Agent cleanup completed")
+    try:
+        if hasattr(app.state, 'qa_agent') and app.state.qa_agent:
+            await app.state.qa_agent.close()
+        logger.info("✓ Agent cleanup completed")
+    except Exception as e:
+        logger.warning(f"Error during cleanup: {e}")
 
 
 # Create FastAPI app

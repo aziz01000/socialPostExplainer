@@ -36,8 +36,23 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3-flash-preview"
     gemini_base_url: str = "https://generativelanguage.googleapis.com"
     
+    # Social Media API Keys (Optional)
+    reddit_client_id: Optional[str] = None
+    reddit_client_secret: Optional[str] = None
+    twitter_bearer_token: Optional[str] = None
+    
+    # News API Keys (Optional)
+    newsdata_api_key: Optional[str] = None
+    newsapi_api_key: Optional[str] = None
+    guardian_api_key: Optional[str] = None
+    
     # LLM Provider Selection
-    llm_provider: str = "openai"
+    llm_provider: str = "gemini"
+    
+    # Embedding Configuration (separate from LLM provider for flexibility)
+    embedding_provider: str = "gemini"
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimensions: int = 3072
     
     # Retrieval
     top_k_documents: int = 5
@@ -70,6 +85,16 @@ print(f"\nGemini:")
 print(f"  API Key: {'✓ Set' if settings.gemini_api_key else '✗ Not set'}")
 print(f"  Model: {settings.gemini_model}")
 print(f"  Base URL: {settings.gemini_base_url}")
+print(f"\nEmbedding Provider: {settings.embedding_provider.upper()}")
+print(f"  Model: {settings.embedding_model}")
+print(f"  Dimensions: {settings.embedding_dimensions}")
+print(f"\nSocial Media APIs (for Q&A):")
+print(f"  Reddit: {'✓ Configured' if settings.reddit_client_id else '✗ Not configured (will use mock data)'}")
+print(f"  Twitter: {'✓ Configured' if settings.twitter_bearer_token else '✗ Not configured (will use mock data)'}")
+print(f"\nNews APIs (for Q&A):")
+print(f"  NewsData.io: {'✓ Configured' if settings.newsdata_api_key else '✗ Not configured (will use mock data)'}")
+print(f"  NewsAPI: {'✓ Configured' if settings.newsapi_api_key else '✗ Not configured (will use mock data)'}")
+print(f"  The Guardian: {'✓ Configured' if settings.guardian_api_key else '✗ Not configured (will use mock data)'}")
 print(f"\nGuardrails:")
 print(f"  Input Moderation: {settings.enable_input_moderation}")
 print(f"  Output Moderation: {settings.enable_output_moderation}")
@@ -92,3 +117,4 @@ elif settings.llm_provider.lower() == "gemini":
 else:
     logger.error(f"⚠️  ERROR: Unknown LLM provider: {settings.llm_provider}")
 
+logger.info(f"Embedding provider: {settings.embedding_provider.upper()} ({settings.embedding_model}, {settings.embedding_dimensions}-dim)")

@@ -43,21 +43,42 @@ class GeminiProvider:
                         model=model,
                         contents=text
                     )
-                    if 'embedding' in result:
-                        embeddings.append(result['embedding'])
-                        logger.debug(f"✓ Embedded text {i+1}/{len(texts)}")
+                    
+                    # Handle different response structures from Gemini API
+                    embedding = None
+                    if isinstance(result, dict):
+                        # Try different possible keys in response
+                        if 'embedding' in result:
+                            embedding = result['embedding']
+                        elif 'embeddings' in result and len(result['embeddings']) > 0:
+                            embedding = result['embeddings'][0].get('values', result['embeddings'][0])
+                        else:
+                            # Log full response for debugging
+                            logger.debug(f"Response structure for text {i+1}: {result.keys() if isinstance(result, dict) else type(result)}")
                     else:
-                        logger.warning(f"No embedding returned for text {i+1}")
-                        embeddings.append([0.0] * 768)
+                        # Result might be an object with attributes
+                        if hasattr(result, 'embedding'):
+                            embedding = result.embedding
+                        elif hasattr(result, 'embeddings') and len(result.embeddings) > 0:
+                            embedding = result.embeddings[0]
+                            if hasattr(embedding, 'values'):
+                                embedding = embedding.values
+                    
+                    if embedding:
+                        embeddings.append(embedding)
+                        logger.debug(f"✓ Embedded text {i+1}/{len(texts)} (dim: {len(embedding)})")
+                    else:
+                        logger.error(f"✗ No embedding returned for text {i+1} - response keys: {result.keys() if isinstance(result, dict) else 'N/A'}")
+                        # Don't add fake embeddings - fail instead
+                        raise ValueError(f"No embedding found in response for text {i+1}")
                 except Exception as e:
-                    logger.error(f"Error embedding text {i+1}: {e}")
-                    embeddings.append([0.0] * 768)
+                    logger.error(f"✗ Error embedding text {i+1}: {e}")
+                    raise
         except Exception as e:
-            logger.error(f"Embedding error: {e}")
-            # Return mock embeddings on error (1536-dim for compatibility with FAISS)
-            embeddings = [[0.0] * 1536 for _ in texts]
+            logger.error(f"✗ Embedding error: {e}")
+            raise
         
-        logger.info(f"✓ Generated {len(embeddings)} embedding(s)")
+        logger.info(f"✓ Generated {len(embeddings)} embedding(s) successfully")
         return embeddings
     
     async def generate_chat_completion(self, messages: List[dict]) -> str:

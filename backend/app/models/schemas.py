@@ -10,6 +10,9 @@ class Source(BaseModel):
     context: str
     relevance_score: float = Field(..., ge=0.0, le=1.0)
     url: Optional[str] = None
+    platform: Optional[str] = None  # e.g., "reddit", "twitter", "docs"
+    engagement_score: Optional[int] = None  # e.g., likes, comments
+    author: Optional[str] = None
 
 
 class ExplainRequest(BaseModel):
@@ -24,6 +27,21 @@ class ExplainResponse(BaseModel):
     explanation: List[str]
     sources: List[Source]
     image_analysis: Optional[str] = None
+    processing_time_ms: float
+
+
+class QARequest(BaseModel):
+    """API request for Q&A with external sources search."""
+    question: str = Field(..., min_length=3, max_length=1000)
+    sources_type: str = Field(default="all", description="Source type: 'all', 'social', or 'news'")
+
+
+class QAResponse(BaseModel):
+    """API response with answer and combined sources."""
+    question: str
+    answer: dict = Field(description="Generated answer with summary and metadata")
+    sources: List[Source]
+    source_breakdown: dict = Field(description="Breakdown of sources by type and platform")
     processing_time_ms: float
 
 
