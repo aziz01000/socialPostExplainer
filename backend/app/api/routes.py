@@ -3,8 +3,16 @@
 import time
 import logging
 from fastapi import APIRouter, HTTPException, Request
-from app.models.schemas import ExplainRequest, ExplainResponse, QARequest, QAResponse, HealthResponse
+from app.models.schemas import (
+    ExplainRequest,
+    ExplainResponse,
+    QARequest,
+    QAResponse,
+    HealthResponse,
+    _context_sources_from_sources,
+)
 from app.config import settings
+from app.observability.phoenix_tracing import trace_request
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,20 +44,24 @@ async def explain_post(request: ExplainRequest, req: Request):
     
     try:
         start_time = time.time()
-        
-        # Run agent
-        result = await agent.explain_post(
-            post_content=request.post_content,
-            image_url=request.image_url
-        )
-        
+        input_preview = (request.post_content or "")[:300]
+        async with trace_request("explain_post", input_preview):
+            result = await agent.explain_post(
+                post_content=request.post_content,
+                image_url=request.image_url
+            )
         processing_time = (time.time() - start_time) * 1000  # Convert to ms
-        
+        sources_out = result["sources"][:request.context_limit]
+        context_sources_used, context_note = _context_sources_from_sources(sources_out)
+
         return ExplainResponse(
             explanation=result["explanation"],
-            sources=result["sources"][:request.context_limit],
+            sources=sources_out,
             image_analysis=result.get("image_analysis"),
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
+            tool_trace=result.get("tool_trace") if request.debug else None,
+            context_sources_used=context_sources_used,
+            context_note=context_note,
         )
     except ValueError as e:
         # Moderation or validation error
@@ -85,14 +97,13 @@ async def social_media_qa(request: QARequest, req: Request):
     try:
         logger.info(f"Processing QA request: {request.question} (sources_type={request.sources_type})")
         start_time = time.time()
-        
-        # Validate sources_type
         if request.sources_type not in ["all", "social", "news"]:
             raise ValueError("sources_type must be 'all', 'social', or 'news'")
-        
-        # Run QA agent
-        result = await qa_agent.answer_question(request.question, request.sources_type)
-        
+
+        input_preview = (request.question or "")[:300]
+        async with trace_request("social_qa", input_preview):
+            result = await qa_agent.answer_question(request.question, request.sources_type)
+
         processing_time = (time.time() - start_time) * 1000  # Convert to ms
         logger.info(f"QA processing completed in {processing_time:.0f}ms")
         
@@ -101,7 +112,8 @@ async def social_media_qa(request: QARequest, req: Request):
             answer=result["answer"],
             sources=result["sources"],
             source_breakdown=result["source_breakdown"],
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
+            tool_trace=result.get("tool_trace") if request.debug else None,
         )
     except ValueError as e:
         # Moderation or validation error

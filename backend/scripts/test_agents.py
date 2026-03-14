@@ -27,7 +27,7 @@ async def test_qa():
             try:
                 response = await client.post(
                     f"{BASE_URL}/social-qa",
-                    json={"question": question, "sources_type": sources_type},
+                    json={"question": question, "sources_type": sources_type, "debug": True},
                     timeout=30.0
                 )
                 
@@ -64,6 +64,16 @@ async def test_qa():
                         print(f"      Relevance: {source['relevance_score']:.2f}")
                         if source.get('engagement_score'):
                             print(f"      Engagement: {source['engagement_score']}")
+
+                    if data.get("tool_trace"):
+                        print("\n🧰 Tool Trace (preview):")
+                        for ev in data["tool_trace"][:6]:
+                            tool = ev.get("tool")
+                            ms = ev.get("ms")
+                            err = ev.get("error")
+                            print(f"   - {tool} ({ms}ms)" if ms is not None else f"   - {tool}")
+                            if err:
+                                print(f"     error: {err}")
                     
                 else:
                     print(f"✗ Error: {response.status_code}")
@@ -93,7 +103,7 @@ async def test_explain():
             try:
                 response = await client.post(
                     f"{BASE_URL}/explain",
-                    json={"post_content": post},
+                    json={"post_content": post, "debug": True},
                     timeout=30.0
                 )
                 
@@ -110,6 +120,16 @@ async def test_explain():
                     print(f"\n📚 {len(data['sources'])} Source(s):")
                     for source in data['sources'][:2]:
                         print(f"   - {source['title']}")
+
+                    if data.get("tool_trace"):
+                        print("\n🧰 Tool Trace (preview):")
+                        for ev in data["tool_trace"][:6]:
+                            tool = ev.get("tool")
+                            ms = ev.get("ms")
+                            err = ev.get("error")
+                            print(f"   - {tool} ({ms}ms)" if ms is not None else f"   - {tool}")
+                            if err:
+                                print(f"     error: {err}")
                     
                 else:
                     print(f"✗ Error: {response.status_code}")

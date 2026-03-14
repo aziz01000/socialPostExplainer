@@ -1,4 +1,4 @@
-.PHONY: help setup install run clean docker-build docker-up docker-down
+.PHONY: help setup install run clean docker-build docker-up docker-down phoenix
 
 help:
 	@echo "Contextual Post Explainer - Development Commands"
@@ -9,6 +9,9 @@ help:
 	@echo ""
 	@echo "Running:"
 	@echo "  make run         Start both services"
+	@echo ""
+	@echo "Observability (Arize Phoenix):"
+	@echo "  make phoenix     Start Phoenix UI in Docker (traces at http://localhost:6006)"
 	@echo ""
 	@echo "Docker:"
 	@echo "  make docker-build   Build images"
@@ -48,5 +51,10 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+# Run Arize Phoenix in Docker (avoids strawberry/pydantic conflict with system Python).
+# Open http://localhost:6006 to view LLM traces. Backend sends traces when PHOENIX_ENABLED=true.
+phoenix:
+	docker run --rm -p 6006:6006 -p 4317:4317 -it arizephoenix/phoenix:latest
 
 .DEFAULT_GOAL := help

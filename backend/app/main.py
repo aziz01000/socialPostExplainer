@@ -24,6 +24,8 @@ async def lifespan(app: FastAPI):
     # Startup
     try:
         logger.info("Starting application...")
+        from app.observability.phoenix_tracing import init_phoenix
+        init_phoenix()
         from app.agents.post_explainer_agent import PostExplainerAgent
         from app.agents.social_media_qa_agent import SocialMediaQAAgent
         

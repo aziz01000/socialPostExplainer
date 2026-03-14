@@ -55,8 +55,8 @@ class OpenAIProvider:
             logger.error(f"✗ Embedding error: {e}", exc_info=True)
             raise
     
-    async def generate_chat_completion(self, messages: List[dict]) -> str:
-        """Generate chat completion."""
+    async def generate_chat_completion(self, messages: List[dict]) -> tuple[str, dict]:
+        """Generate chat completion. Returns (content, usage_dict with prompt_tokens, completion_tokens, total_tokens)."""
         logger.info(f"Generating chat completion with {self.model}")
         url = f"{self.base_url}/chat/completions"
         payload = {
@@ -65,14 +65,20 @@ class OpenAIProvider:
             "temperature": 0.7,
             "max_tokens": 2048,
         }
-        
+        usage_out = {}
         try:
             response = await self.client.post(url, json=payload)
             response.raise_for_status()
             data = response.json()
             result = data["choices"][0]["message"]["content"]
-            logger.info(f"✓ Chat completion generated successfully ({len(result)} chars)")
-            return result
+            u = data.get("usage") or {}
+            usage_out = {
+                "prompt_tokens": u.get("prompt_tokens", 0),
+                "completion_tokens": u.get("completion_tokens", 0),
+                "total_tokens": u.get("total_tokens", 0) or (u.get("prompt_tokens", 0) + u.get("completion_tokens", 0)),
+            }
+            logger.info(f"✓ Chat completion generated successfully ({len(result)} chars, {usage_out.get('total_tokens', 0)} tokens)")
+            return result, usage_out
         except Exception as e:
             logger.error(f"✗ Completion error: {e}", exc_info=True)
             raise
@@ -107,8 +113,8 @@ class OpenAIProvider:
             # Fail open - don't block on moderation errors
             return {"flagged": False, "categories": {}}
     
-    async def analyze_image(self, image_url: str, question: str) -> str:
-        """Analyze image using vision model."""
+    async def analyze_image(self, image_url: str, question: str) -> tuple[str, dict]:
+        """Analyze image using vision model. Returns (content, usage_dict)."""
         logger.info(f"Analyzing image from URL: {image_url}")
         
         # Try vision models in order of capability
@@ -169,9 +175,15 @@ class OpenAIProvider:
                 response.raise_for_status()
                 data = response.json()
                 result = data["choices"][0]["message"]["content"]
-                logger.info(f"✓ Image analysis completed with {model} ({len(result)} chars)")
-                return result
-                
+                u = data.get("usage") or {}
+                usage_out = {
+                    "prompt_tokens": u.get("prompt_tokens", 0),
+                    "completion_tokens": u.get("completion_tokens", 0),
+                    "total_tokens": u.get("total_tokens", 0) or (u.get("prompt_tokens", 0) + u.get("completion_tokens", 0)),
+                }
+                logger.info(f"✓ Image analysis completed with {model} ({len(result)} chars, {usage_out.get('total_tokens', 0)} tokens)")
+                return result, usage_out
+
             except httpx.HTTPStatusError as e:
                 # Try to extract error details from response
                 error_detail = f"HTTP {e.response.status_code}"

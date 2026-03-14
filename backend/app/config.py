@@ -47,12 +47,14 @@ class Settings(BaseSettings):
     guardian_api_key: Optional[str] = None
     
     # LLM Provider Selection
-    llm_provider: str = "gemini"
+    # Default to OpenAI for this take-home since an OpenAI key is provided.
+    llm_provider: str = "openai"
     
     # Embedding Configuration (separate from LLM provider for flexibility)
-    embedding_provider: str = "gemini"
-    embedding_model: str = "gemini-embedding-001"
-    embedding_dimensions: int = 3072
+    # The repo ships a FAISS index built with 1536-d OpenAI embeddings.
+    embedding_provider: str = "openai"
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimensions: int = 1536
     
     # Retrieval
     top_k_documents: int = 5
@@ -62,8 +64,10 @@ class Settings(BaseSettings):
     enable_input_moderation: bool = True
     enable_output_moderation: bool = True
     
-    # Observability
+    # Observability (Arize Phoenix)
     phoenix_enabled: bool = True
+    phoenix_project_name: str = "contextual-post-explainer"
+    phoenix_collector_endpoint: Optional[str] = None  # e.g. http://localhost:6006 or Phoenix Cloud URL
     log_level: str = "INFO"
 
 

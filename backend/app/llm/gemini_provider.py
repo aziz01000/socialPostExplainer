@@ -81,34 +81,39 @@ class GeminiProvider:
         logger.info(f"✓ Generated {len(embeddings)} embedding(s) successfully")
         return embeddings
     
-    async def generate_chat_completion(self, messages: List[dict]) -> str:
-        """Generate chat completion using Gemini."""
+    async def generate_chat_completion(self, messages: List[dict]) -> tuple[str, dict]:
+        """Generate chat completion using Gemini. Returns (content, usage_dict)."""
         if not self.client:
             error_msg = "Gemini client not initialized (missing API key)"
             logger.error(f"✗ {error_msg}")
             raise ValueError(error_msg)
-        
+        usage_out = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         try:
-            # Get the last user message
             user_message = None
             for msg in reversed(messages):
                 if msg["role"] == "user":
                     user_message = msg["content"]
                     break
-            
             if not user_message:
                 logger.error("No user message found in conversation")
                 raise ValueError("No user message found")
-            
             logger.info(f"Generating chat completion with {self.model}")
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=user_message
             )
-            
             result = response.text if response.text else "No response generated"
-            logger.info(f"✓ Chat completion generated successfully ({len(result)} chars)")
-            return result
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                um = response.usage_metadata
+                usage_out = {
+                    "prompt_tokens": getattr(um, "prompt_token_count", None) or getattr(um, "prompt_tokens", 0) or 0,
+                    "completion_tokens": getattr(um, "candidates_token_count", None) or getattr(um, "completion_tokens", 0) or 0,
+                    "total_tokens": getattr(um, "total_token_count", None) or 0,
+                }
+                if not usage_out["total_tokens"]:
+                    usage_out["total_tokens"] = usage_out["prompt_tokens"] + usage_out["completion_tokens"]
+            logger.info(f"✓ Chat completion generated successfully ({len(result)} chars, {usage_out.get('total_tokens', 0)} tokens)")
+            return result, usage_out
         except Exception as e:
             logger.error(f"✗ Gemini completion error: {e}", exc_info=True)
             raise
@@ -119,18 +124,15 @@ class GeminiProvider:
         # This is a placeholder - actual filtering happens server-side
         return {"flagged": False, "categories": {}}
     
-    async def analyze_image(self, image_url: str, question: str) -> str:
-        """Analyze image using Gemini's vision capabilities."""
+    async def analyze_image(self, image_url: str, question: str) -> tuple[str, dict]:
+        """Analyze image using Gemini's vision capabilities. Returns (content, usage_dict)."""
         if not self.client:
             logger.warning("Gemini client not initialized - skipping image analysis")
-            return "Image analysis unavailable (client not initialized)"
-        
+            return "Image analysis unavailable (client not initialized)", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         try:
             logger.info(f"Analyzing image from URL: {image_url}")
-            # For now, return a placeholder since vision API handling varies
-            # Real implementation would need to handle image uploads properly
             logger.warning("Image analysis not available in current Gemini SDK version")
-            return "Image analysis not available in current API version"
+            return "Image analysis not available in current API version", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         except Exception as e:
             logger.error(f"✗ Image analysis error: {e}", exc_info=True)
             raise

@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import asyncio
 import re
 import numpy as np
+import time
 from app.retrieval.vector_store import VectorStore
 from app.retrieval.web_search import WebSearch
 from app.retrieval.social_media_search import ExternalSourcesSearch
@@ -48,11 +49,14 @@ async def build_sources_for_post(
     model_router: ModelRouter,
     top_k: int = 8,
     sources_type: str = "all",
+    tool_trace: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Source]:
     """Retrieve and rerank sources for a post."""
+    trace = tool_trace if tool_trace is not None else []
     query = _clean_post_for_query(post_content)
 
     # Retrieve in parallel.
+    t0 = time.time()
     vector_task = vector_store.search(query, k=max(3, settings.top_k_documents))
     web_task = web_search.search(query, num_results=5)
     external_task = external_sources.search(query, num_results=5, sources_type=sources_type)
@@ -60,10 +64,31 @@ async def build_sources_for_post(
     vector_results, web_results, external_results = await asyncio.gather(
         vector_task, web_task, external_task, return_exceptions=True
     )
+    trace.append(
+        {
+            "tool": "retrieve_all",
+            "input": {"query": query, "sources_type": sources_type},
+            "ms": int((time.time() - t0) * 1000),
+        }
+    )
 
     sources: List[Source] = []
 
     if not isinstance(vector_results, Exception):
+        trace.append(
+            {
+                "tool": "vector_store.search",
+                "input": {"query": query, "k": max(3, settings.top_k_documents)},
+                "output_preview": [
+                    {
+                        "title": (doc or {}).get("title"),
+                        "score": float(score),
+                        "url": (doc or {}).get("url"),
+                    }
+                    for doc, score in (vector_results or [])[:5]
+                ],
+            }
+        )
         for doc, score in (vector_results or []):
             sources.append(
                 Source(
@@ -76,8 +101,30 @@ async def build_sources_for_post(
                     author=None,
                 )
             )
+    else:
+        trace.append(
+            {
+                "tool": "vector_store.search",
+                "input": {"query": query, "k": max(3, settings.top_k_documents)},
+                "error": str(vector_results),
+            }
+        )
 
     if not isinstance(web_results, Exception):
+        trace.append(
+            {
+                "tool": "web_search.search",
+                "input": {"query": query, "num_results": 5},
+                "output_preview": [
+                    {
+                        "title": (r or {}).get("title"),
+                        "url": (r or {}).get("url"),
+                        "snippet": _safe_truncate((r or {}).get("snippet", ""), 140),
+                    }
+                    for r in (web_results or [])[:5]
+                ],
+            }
+        )
         for r in (web_results or []):
             sources.append(
                 Source(
@@ -90,8 +137,32 @@ async def build_sources_for_post(
                     author=None,
                 )
             )
+    else:
+        trace.append(
+            {
+                "tool": "web_search.search",
+                "input": {"query": query, "num_results": 5},
+                "error": str(web_results),
+            }
+        )
 
     if not isinstance(external_results, Exception):
+        trace.append(
+            {
+                "tool": "external_sources.search",
+                "input": {"query": query, "num_results": 5, "sources_type": sources_type},
+                "output_preview": [
+                    {
+                        "platform": (r or {}).get("platform"),
+                        "title": (r or {}).get("title"),
+                        "score": float((r or {}).get("score", 0.0)),
+                        "engagement": (r or {}).get("engagement"),
+                        "url": (r or {}).get("url"),
+                    }
+                    for r in (external_results or [])[:5]
+                ],
+            }
+        )
         for r in (external_results or []):
             sources.append(
                 Source(
@@ -104,9 +175,18 @@ async def build_sources_for_post(
                     author=r.get("author"),
                 )
             )
+    else:
+        trace.append(
+            {
+                "tool": "external_sources.search",
+                "input": {"query": query, "num_results": 5, "sources_type": sources_type},
+                "error": str(external_results),
+            }
+        )
 
     # Rerank with embeddings if available.
     try:
+        t1 = time.time()
         texts = [query] + [f"{s.title}\n{s.context}" for s in sources]
         embs = await model_router.generate_embeddings(texts)
         if not embs or len(embs) != len(texts):
@@ -124,9 +204,27 @@ async def build_sources_for_post(
             s.relevance_score = max(0.0, min(1.0, float(sim)))
             reranked.append(s)
         sources = reranked
+        trace.append(
+            {
+                "tool": "embedding_rerank",
+                "input": {"items": len(texts) - 1},
+                "ms": int((time.time() - t1) * 1000),
+                "output_preview": [
+                    {"title": s.title, "score": float(s.relevance_score)}
+                    for s in sources[:5]
+                ],
+            }
+        )
     except Exception as e:
         logger.warning(f"Embedding rerank unavailable, using provider scores. Error: {e}")
         sources.sort(key=lambda s: s.relevance_score, reverse=True)
+        trace.append(
+            {
+                "tool": "embedding_rerank",
+                "error": str(e),
+                "note": "Falling back to provider/native scores",
+            }
+        )
 
     # Deduplicate by (title,url) to avoid repeating the same thing.
     seen = set()
