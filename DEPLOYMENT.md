@@ -26,8 +26,10 @@ Pushes to `main` (and PRs targeting `main`) automatically build and deploy the *
 ### Setup
 
 1. **Create an Azure Static Web App** (Azure portal or CLI) and link it to this repo if desired, or use the existing one.
-2. **Add GitHub secret** (repo → Settings → Secrets and variables → Actions):
-   - `AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_WAVE_075D2CA10` = deployment token from Azure (Static Web App → Manage deployment token).
+2. **Add GitHub secret** (repo → **Settings → Secrets and variables → Actions → New repository secret**):
+   - **Name:** `AZURE_STATIC_WEB_APPS_API_TOKEN` (or `AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_WAVE_075D2CA10` if you prefer Azure’s name).
+   - **Value:** the deployment token from Azure (**Static Web App → Overview → Manage deployment token**).  
+   Without this secret, the workflow will fail with “deployment_token was not provided”.
 3. **Optional – production backend URL**: add a repo **Variable** (Settings → Secrets and variables → Actions → Variables):
    - `REACT_APP_API_BASE_URL` = your deployed backend URL (e.g. `https://your-backend.azurewebsites.net`).  
    If unset, the frontend uses `http://localhost:8000` (fine for local dev; set this for production).
