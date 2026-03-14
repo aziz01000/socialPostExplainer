@@ -7,7 +7,21 @@ const MODES = { explain: "explain", qa: "qa" };
 function sourcePlatformLabel(platform) {
   if (!platform) return "source";
   if (platform === "vector_db") return "Vector DB";
-  return platform;
+  const labels = {
+    newsdata: "NewsData",
+    newsapi: "NewsAPI",
+    guardian: "Guardian",
+    reddit: "Reddit",
+    twitter: "Twitter",
+    web: "Web",
+  };
+  return labels[platform] || platform;
+}
+
+function sourcePlatformClass(platform) {
+  if (!platform) return "platform-default";
+  const slug = (platform || "").toLowerCase().replace(/\s+/g, "_");
+  return `platform-${slug}`;
 }
 
 function parseBulletWithCitations(text, sources, highlightedSource, onCitationHover) {
@@ -186,9 +200,11 @@ function ExplainFlow({ onResult }) {
                 {sources.map((src, i) => (
                   <div
                     key={i}
-                    className={`source-card ${highlightedSource === i + 1 ? "highlight" : ""}`}
+                    className={`source-card ${sourcePlatformClass(src.platform)} ${highlightedSource === i + 1 ? "highlight" : ""}`}
+                    onMouseEnter={() => setHighlightedSource(i + 1)}
+                    onMouseLeave={() => setHighlightedSource(null)}
                   >
-                    <span className="platform">[{i + 1}] {sourcePlatformLabel(src.platform)}</span>
+                    <span className="platform-tag">[{i + 1}] {sourcePlatformLabel(src.platform)}</span>
                     <h3 className="title">{src.title}</h3>
                     <p className="context">{src.context}</p>
                     {src.url && src.platform !== "vector_db" && (
@@ -304,8 +320,8 @@ function QAFlow({ onResult }) {
           {breakdown?.platforms && Object.keys(breakdown.platforms).length > 0 && (
             <div className="breakdown">
               {Object.entries(breakdown.platforms).map(([platform, count]) => (
-                <span key={platform} className="breakdown-pill">
-                  {platform}: {count}
+                <span key={platform} className={`breakdown-pill ${sourcePlatformClass(platform)}`}>
+                  {sourcePlatformLabel(platform)}: {count}
                 </span>
               ))}
             </div>
@@ -324,11 +340,11 @@ function QAFlow({ onResult }) {
                 {sources.map((src, i) => (
                   <div
                     key={i}
-                    className={`source-card ${highlightedSource === i + 1 ? "highlight" : ""}`}
+                    className={`source-card ${sourcePlatformClass(src.platform)} ${highlightedSource === i + 1 ? "highlight" : ""}`}
                     onMouseEnter={() => setHighlightedSource(i + 1)}
                     onMouseLeave={() => setHighlightedSource(null)}
                   >
-                    <span className="platform">{sourcePlatformLabel(src.platform)}</span>
+                    <span className="platform-tag">{sourcePlatformLabel(src.platform)}</span>
                     <h3 className="title">{src.title}</h3>
                     <p className="context">{src.context}</p>
                     {src.url && src.platform !== "vector_db" && (

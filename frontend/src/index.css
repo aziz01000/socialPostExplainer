@@ -18,7 +18,18 @@
   --font-head: "Syne", system-ui, sans-serif;
   --font-body: "DM Sans", system-ui, sans-serif;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.5);
   --transition: 0.2s ease;
+  --transition-slow: 0.35s ease;
+  /* Platform color-coding */
+  --platform-vector_db: #a78bfa;
+  --platform-web: #38bdf8;
+  --platform-reddit: #f97316;
+  --platform-twitter: #22d3ee;
+  --platform-newsdata: #34d399;
+  --platform-newsapi: #fbbf24;
+  --platform-guardian: #60a5fa;
+  --platform-external: #c084fc;
 }
 
 * {
@@ -34,6 +45,9 @@ body {
   margin: 0;
   font-family: var(--font-body);
   background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(228, 168, 83, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(167, 139, 250, 0.06), transparent);
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
