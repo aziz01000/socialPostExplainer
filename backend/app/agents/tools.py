@@ -55,9 +55,11 @@ async def build_sources_for_post(
     trace = tool_trace if tool_trace is not None else []
     query = _clean_post_for_query(post_content)
 
-    # Retrieve in parallel.
+    # Retrieve in parallel. Fetch more from vector DB so we can rerank/filter by relevance.
     t0 = time.time()
-    vector_task = vector_store.search(query, k=max(3, settings.top_k_documents))
+    vector_k = settings.vector_db_initial_k
+    vector_threshold = settings.vector_db_relevance_threshold
+    vector_task = vector_store.search(query, k=max(5, vector_k))
     web_task = web_search.search(query, num_results=5)
     external_task = external_sources.search(query, num_results=5, sources_type=sources_type)
 
@@ -75,21 +77,47 @@ async def build_sources_for_post(
     sources: List[Source] = []
 
     if not isinstance(vector_results, Exception):
+        raw_vector = list(vector_results or [])
+        # Rerank vector DB results by query–document similarity and keep only relevant ones
+        vector_candidates: List[Tuple[Dict, float]] = []
+        if raw_vector:
+            try:
+                texts = [f"{(d.get('title') or '')}\n{(d.get('content') or '')}" for d, _ in raw_vector]
+                embs = await model_router.generate_embeddings([query] + texts)
+                if embs and len(embs) == 1 + len(texts):
+                    q = np.array(embs[0], dtype=np.float32)
+                    for (doc, _), e in zip(raw_vector, embs[1:]):
+                        sim = _cosine_sim(q, np.array(e, dtype=np.float32))
+                        if sim >= vector_threshold:
+                            vector_candidates.append((doc, float(sim)))
+                    vector_candidates.sort(key=lambda x: x[1], reverse=True)
+                else:
+                    # Fallback: use FAISS scores and threshold
+                    for doc, score in raw_vector:
+                        if float(score) >= vector_threshold:
+                            vector_candidates.append((doc, float(score)))
+                    vector_candidates.sort(key=lambda x: x[1], reverse=True)
+            except Exception as e:
+                logger.warning(f"Vector DB rerank failed, using FAISS scores: {e}")
+                for doc, score in raw_vector:
+                    if float(score) >= vector_threshold:
+                        vector_candidates.append((doc, float(score)))
+                vector_candidates.sort(key=lambda x: x[1], reverse=True)
+        # Cap number of vector_db sources
+        max_vector = max(3, settings.top_k_documents)
+        vector_candidates = vector_candidates[:max_vector]
         trace.append(
             {
                 "tool": "vector_store.search",
-                "input": {"query": query, "k": max(3, settings.top_k_documents)},
+                "input": {"query": query, "k": max(5, vector_k), "relevance_threshold": vector_threshold},
                 "output_preview": [
-                    {
-                        "title": (doc or {}).get("title"),
-                        "score": float(score),
-                        "url": (doc or {}).get("url"),
-                    }
-                    for doc, score in (vector_results or [])[:5]
+                    {"title": (doc or {}).get("title"), "score": float(score), "url": (doc or {}).get("url")}
+                    for doc, score in vector_candidates[:5]
                 ],
+                "filtered": f"{len(vector_candidates)} above threshold (of {len(raw_vector)})",
             }
         )
-        for doc, score in (vector_results or []):
+        for doc, score in vector_candidates:
             sources.append(
                 Source(
                     title=doc.get("title", "Document"),
@@ -105,7 +133,7 @@ async def build_sources_for_post(
         trace.append(
             {
                 "tool": "vector_store.search",
-                "input": {"query": query, "k": max(3, settings.top_k_documents)},
+                "input": {"query": query, "k": max(5, vector_k)},
                 "error": str(vector_results),
             }
         )

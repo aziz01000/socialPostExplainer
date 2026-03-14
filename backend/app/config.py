@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # Retrieval
     top_k_documents: int = 5
     rerank_top_k: int = 3
+    # Vector DB: fetch more candidates then keep only relevant ones (don't show vector_db if nothing is relevant)
+    vector_db_initial_k: int = 20
+    vector_db_relevance_threshold: float = 0.45
     
     # Guardrails
     enable_input_moderation: bool = True
