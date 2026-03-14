@@ -325,6 +325,8 @@ function QAFlow({ onResult }) {
                   <div
                     key={i}
                     className={`source-card ${highlightedSource === i + 1 ? "highlight" : ""}`}
+                    onMouseEnter={() => setHighlightedSource(i + 1)}
+                    onMouseLeave={() => setHighlightedSource(null)}
                   >
                     <span className="platform">{sourcePlatformLabel(src.platform)}</span>
                     <h3 className="title">{src.title}</h3>
