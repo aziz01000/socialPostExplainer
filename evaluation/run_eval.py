@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 
-RE_CITATION = re.compile(r"\\[S\\d+\\]")
+RE_CITATION = re.compile(r"\[S\d+\]")
 
 
 def _load_cases(path: Path) -> List[Dict[str, Any]]:

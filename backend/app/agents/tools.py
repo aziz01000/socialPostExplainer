@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 def _clean_post_for_query(text: str) -> str:
     # Strip obvious URLs and excessive whitespace; keep hashtags and mentions.
-    t = re.sub(r"https?://\\S+", "", text or "")
-    t = re.sub(r"\\s+", " ", t).strip()
+    t = re.sub(r"https?://\S+", "", text or "")
+    t = re.sub(r"\s+", " ", t).strip()
     return t[:500]
 
 
@@ -96,7 +96,7 @@ async def build_sources_for_post(
                     context=_safe_truncate(doc.get("content", ""), 700),
                     relevance_score=float(score),
                     url=doc.get("url"),
-                    platform="docs",
+                    platform="vector_db",
                     engagement_score=None,
                     author=None,
                 )

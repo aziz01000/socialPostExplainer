@@ -78,6 +78,14 @@
         "Bitcoin",
         "halving"
       ]
+    },
+    {
+      "id": "agentic-1",
+      "post_content": "Just use a bash loop and an AI agent. Skip the fancy agentic framework.",
+      "expected_contains": [
+        "agent",
+        "loop"
+      ]
     }
   ]
 }

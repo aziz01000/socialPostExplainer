@@ -59,7 +59,7 @@ async def test_qa():
                     
                     print(f"📚 Top 3 Sources:")
                     for i, source in enumerate(data['sources'][:3], 1):
-                        platform = (source.get('platform') or 'docs').upper()
+                        platform = (source.get('platform') or 'vector_db').upper()
                         print(f"   {i}. [{platform}] {source['title'][:60]}...")
                         print(f"      Relevance: {source['relevance_score']:.2f}")
                         if source.get('engagement_score'):

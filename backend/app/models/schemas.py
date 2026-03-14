@@ -10,7 +10,7 @@ class Source(BaseModel):
     context: str
     relevance_score: float = Field(..., ge=0.0, le=1.0)
     url: Optional[str] = None
-    platform: Optional[str] = None  # e.g., "reddit", "twitter", "docs"
+    platform: Optional[str] = None  # e.g., "vector_db", "reddit", "wikipedia"
     engagement_score: Optional[int] = None  # e.g., likes, comments
     author: Optional[str] = None
 
@@ -36,7 +36,7 @@ def _context_sources_from_sources(sources: List[Source]) -> Tuple[ContextSources
     used = ContextSourcesUsed()
     for s in sources or []:
         p = (s.platform or "").lower()
-        if p == "docs":
+        if p == "vector_db":
             used.vector_db = True
         elif p in ("web", "wikipedia"):
             used.web = True
