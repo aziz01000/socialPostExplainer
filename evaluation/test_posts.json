@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "ralph-1",
+      "post_content": "The Ralph Wiggum technique is undefeated. Just bash-loop it until it works.",
+      "expected_contains": [
+        "Ralph Wiggum technique",
+        "bash",
+        "loop"
+      ]
+    },
+    {
+      "id": "ralph-2",
+      "post_content": "Geoffrey Huntley cooked with the Ralph Wiggum technique back in 2025.",
+      "expected_contains": [
+        "Geoffrey Huntley",
+        "2025"
+      ]
+    },
+    {
+      "id": "ralph-3",
+      "post_content": "I can’t believe $RALPH is a Solana token now. We live in a meme economy.",
+      "expected_contains": [
+        "$RALPH",
+        "Solana"
+      ]
+    },
+    {
+      "id": "fyre-1",
+      "post_content": "This launch feels like Fyre Festival 2.0, but with more slide decks.",
+      "expected_contains": [
+        "Fyre Festival"
+      ]
+    },
+    {
+      "id": "icebucket-1",
+      "post_content": "Remember when everyone was dumping ice water on themselves for ALS?",
+      "expected_contains": [
+        "Ice Bucket Challenge",
+        "ALS"
+      ]
+    },
+    {
+      "id": "dress-1",
+      "post_content": "Not this again... it's obviously blue and black. Right?",
+      "expected_contains": [
+        "blue",
+        "black"
+      ]
+    },
+    {
+      "id": "doge-1",
+      "post_content": "Doge to the moon. Much wow. Very finance.",
+      "expected_contains": [
+        "Dogecoin"
+      ]
+    },
+    {
+      "id": "gme-1",
+      "post_content": "Diamond hands. Hold the line. GME.",
+      "expected_contains": [
+        "GameStop"
+      ]
+    },
+    {
+      "id": "barbenheimer-1",
+      "post_content": "We did Barbenheimer the way it was intended: double feature, zero sleep.",
+      "expected_contains": [
+        "Barbie",
+        "Oppenheimer"
+      ]
+    },
+    {
+      "id": "bitcoin-halving-1",
+      "post_content": "Next halving is going to send it. Stock-to-flow truthers assembling.",
+      "expected_contains": [
+        "Bitcoin",
+        "halving"
+      ]
+    }
+  ]
+}
+

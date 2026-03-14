@@ -33,6 +33,31 @@ class ModelRouter:
             # Default to same provider as LLM
             self.embedding_provider = self.provider
             print(f"✓ Embedding provider: Same as LLM provider")
+        
+        self._langchain_llm = None
+    
+    def get_llm_instance(self):
+        """Get LangChain-compatible LLM instance."""
+        if self._langchain_llm is not None:
+            return self._langchain_llm
+        
+        # Create LangChain LLM wrapper based on provider
+        if isinstance(self.provider, OpenAIProvider):
+            from langchain_openai import ChatOpenAI
+            self._langchain_llm = ChatOpenAI(
+                api_key=settings.openai_api_key,
+                model=settings.openai_model,
+                temperature=0.7
+            )
+        else:  # Gemini
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            self._langchain_llm = ChatGoogleGenerativeAI(
+                api_key=settings.gemini_api_key,
+                model=settings.gemini_model,
+                temperature=0.7
+            )
+        
+        return self._langchain_llm
     
     async def generate_embeddings(self, texts: list) -> list:
         """Generate embeddings using embedding provider."""

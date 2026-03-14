@@ -52,8 +52,12 @@ async def explain_post(request: ExplainRequest, req: Request):
             processing_time_ms=processing_time
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Moderation or validation error
+        error_msg = str(e)
+        logger.warning(f"Input validation failed: {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
     except Exception as e:
+        logger.error(f"Explain post error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -100,8 +104,10 @@ async def social_media_qa(request: QARequest, req: Request):
             processing_time_ms=processing_time
         )
     except ValueError as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        # Moderation or validation error
+        error_msg = str(e)
+        logger.warning(f"Input validation failed: {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
     except Exception as e:
         logger.error(f"QA processing error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

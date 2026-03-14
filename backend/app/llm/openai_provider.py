@@ -108,33 +108,107 @@ class OpenAIProvider:
             return {"flagged": False, "categories": {}}
     
     async def analyze_image(self, image_url: str, question: str) -> str:
-        """Analyze image using GPT-4o vision."""
+        """Analyze image using vision model."""
         logger.info(f"Analyzing image from URL: {image_url}")
-        url = f"{self.base_url}/chat/completions"
-        payload = {
-            "model": "gpt-4o",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": question},
-                        {"type": "image_url", "image_url": {"url": image_url}}
-                    ]
-                }
-            ],
-            "max_tokens": 1024,
-        }
         
-        try:
-            response = await self.client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            result = data["choices"][0]["message"]["content"]
-            logger.info(f"✓ Image analysis completed ({len(result)} chars)")
-            return result
-        except Exception as e:
-            logger.error(f"✗ Image analysis error: {e}", exc_info=True)
-            raise
+        # Try vision models in order of capability
+        # gpt-4o supports vision, gpt-4-turbo is fallback, then use configured model
+        vision_models_to_try = []
+        
+        # Try common vision models first
+        if self.model in ["gpt-4o-mini", "gpt-4o"]:
+            vision_models_to_try.append(self.model)
+        
+        # Add additional vision models
+        vision_models_to_try.extend(["gpt-4-turbo", "gpt-4-vision-preview"])
+        
+        # Fall back to configured model if different
+        if self.model not in vision_models_to_try:
+            vision_models_to_try.append(self.model)
+        
+        last_error = None
+        
+        for model in vision_models_to_try:
+            url = f"{self.base_url}/chat/completions"
+            
+            # Ensure URL is properly formatted
+            if not isinstance(image_url, str) or not (image_url.startswith('http://') or image_url.startswith('https://')):
+                error_msg = f"Invalid image URL: {image_url}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": question
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 1024,
+            }
+            
+            try:
+                logger.debug(f"Attempting image analysis with model: {model}")
+                response = await self.client.post(url, json=payload)
+                
+                # Log response status
+                logger.debug(f"Image analysis response status: {response.status_code}")
+                
+                response.raise_for_status()
+                data = response.json()
+                result = data["choices"][0]["message"]["content"]
+                logger.info(f"✓ Image analysis completed with {model} ({len(result)} chars)")
+                return result
+                
+            except httpx.HTTPStatusError as e:
+                # Try to extract error details from response
+                error_detail = f"HTTP {e.response.status_code}"
+                try:
+                    error_data = e.response.json()
+                    if "error" in error_data:
+                        error_detail = f"{error_detail}: {error_data['error'].get('message', str(error_data['error']))}"
+                    else:
+                        error_detail = f"{error_detail}: {str(error_data)}"
+                except:
+                    error_detail = f"{error_detail}: {e.response.text[:200]}"
+                
+                logger.warning(f"Model '{model}' failed: {error_detail}")
+                last_error = error_detail
+                
+                # Try next model on 400/401/403/429 errors
+                if e.response.status_code in [400, 401, 403, 429]:
+                    if model != vision_models_to_try[-1]:
+                        logger.debug(f"Trying fallback model: {vision_models_to_try[vision_models_to_try.index(model) + 1]}")
+                        continue
+                    else:
+                        # All models failed
+                        logger.error(f"✗ Image analysis failed with all vision models. Last error: {error_detail}")
+                        raise ValueError(f"Image analysis not available: {error_detail}")
+                else:
+                    # For other errors, fail immediately
+                    raise
+                    
+            except Exception as e:
+                logger.error(f"✗ Image analysis error with model '{model}': {e}", exc_info=True)
+                last_error = str(e)
+                if model == vision_models_to_try[-1]:
+                    raise
+                continue
+        
+        # Fallback error
+        raise ValueError(f"Image analysis failed: {last_error}")
     
     async def close(self):
         """Close HTTP client."""

@@ -4,8 +4,9 @@ import faiss
 import numpy as np
 import json
 import os
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
 from app.llm.model_router import ModelRouter
+from app.config import settings
 
 
 class VectorStore:
@@ -15,7 +16,9 @@ class VectorStore:
         self.index = None
         self.documents = []
         self.model_router = ModelRouter()
-        self.embedding_dim = 1536  # text-embedding-3-small dimension
+        # Default to configured embedding dimensions; metadata/index load may override.
+        # OpenAI's text-embedding-3-small is 1536, Gemini embedding can be 3072, etc.
+        self.embedding_dim = int(getattr(settings, "embedding_dimensions", 1536) or 1536)
         
         # Use absolute path relative to backend root, not current working directory
         if data_dir is None:
@@ -26,6 +29,7 @@ class VectorStore:
         self.data_dir = data_dir
         self.index_path = os.path.join(data_dir, "faiss.index")
         self.docs_path = os.path.join(data_dir, "documents.json")
+        self.metadata_path = os.path.join(data_dir, "metadata.json")
         
         print(f"🗂️  VectorStore initialized with data_dir: {self.data_dir}")
     
@@ -40,13 +44,16 @@ class VectorStore:
                 self.index = faiss.read_index(self.index_path)
                 with open(self.docs_path, 'r') as f:
                     data = json.load(f)
-                    self.documents = data.get("documents", [])
+                    # Support both legacy list format and current {"documents": [...]} format.
+                    if isinstance(data, list):
+                        self.documents = data
+                    else:
+                        self.documents = data.get("documents", [])
                 
                 # Load embedding dimension from metadata if available
-                metadata_path = os.path.join(self.data_dir, "metadata.json")
-                if os.path.exists(metadata_path):
+                if os.path.exists(self.metadata_path):
                     try:
-                        with open(metadata_path, 'r') as f:
+                        with open(self.metadata_path, 'r') as f:
                             metadata = json.load(f)
                             loaded_dim = metadata.get("embedding_dim", self.embedding_dim)
                             self.embedding_dim = loaded_dim
@@ -75,7 +82,10 @@ class VectorStore:
             try:
                 with open(self.docs_path, 'r') as f:
                     data = json.load(f)
-                    self.documents = data.get("documents", [])
+                    if isinstance(data, list):
+                        self.documents = data
+                    else:
+                        self.documents = data.get("documents", [])
                 print(f"✓ Loaded {len(self.documents)} documents from file (text search mode)")
                 return
             except Exception as e:
@@ -93,9 +103,15 @@ class VectorStore:
         
         # Generate embeddings
         embeddings = await self.model_router.generate_embeddings(texts)
+        if not embeddings:
+            raise ValueError("Embedding provider returned no embeddings")
         
         # Add to FAISS
         embeddings_array = np.array(embeddings).astype('float32')
+        # If embedding dimensions changed, recreate index to avoid FAISS dimension mismatch.
+        if embeddings_array.shape[1] != self.embedding_dim:
+            self.embedding_dim = int(embeddings_array.shape[1])
+            self.index = faiss.IndexFlatL2(self.embedding_dim)
         self.index.add(embeddings_array)
         
         # Store documents
@@ -119,6 +135,8 @@ class VectorStore:
         try:
             # Embed query
             query_embeddings = await self.model_router.generate_embeddings([query])
+            if not query_embeddings:
+                raise ValueError("Embedding provider returned no query embedding")
             query_array = np.array(query_embeddings).astype('float32')
             
             print(f"🔍 Searching FAISS with query embedding shape: {query_array.shape}")
@@ -179,7 +197,20 @@ class VectorStore:
         try:
             faiss.write_index(self.index, self.index_path)
             with open(self.docs_path, 'w') as f:
-                json.dump(self.documents, f, indent=2)
+                json.dump({"documents": self.documents}, f, indent=2)
+            with open(self.metadata_path, "w") as f:
+                json.dump(
+                    {
+                        "embedding_dim": int(self.embedding_dim),
+                        "num_vectors": int(self.index.ntotal if self.index is not None else 0),
+                        "num_documents": int(len(self.documents)),
+                        "index_type": type(self.index).__name__ if self.index is not None else None,
+                        "embedding_provider": getattr(settings, "embedding_provider", None),
+                        "embedding_model": getattr(settings, "embedding_model", None),
+                    },
+                    f,
+                    indent=2,
+                )
         except Exception as e:
             print(f"Warning: Failed to save index: {e}")
     
