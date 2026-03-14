@@ -1,26 +1,42 @@
-"""Configuration management."""
+"""Configuration management with comprehensive logging."""
 
-from pydantic_settings import BaseSettings
+import logging
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+from pathlib import Path
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
     """Application settings from environment variables."""
+    
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).parent.parent / ".env"),
+        case_sensitive=False
+    )
     
     # API
     debug: bool = False
     api_title: str = "Contextual Post Explainer"
     api_version: str = "1.0.0"
     
-    # OpenAI
+    # OpenAI Configuration
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
     
-    # Google Gemini
+    # Google Gemini Configuration
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-3-flash-preview"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com"
     
-    # LLM
+    # LLM Provider Selection
     llm_provider: str = "openai"
     
     # Retrieval
@@ -33,29 +49,46 @@ class Settings(BaseSettings):
     
     # Observability
     phoenix_enabled: bool = True
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    log_level: str = "INFO"
 
 
 settings = Settings()
 
+# Configure logging level from settings
+logging.getLogger().setLevel(settings.log_level)
+
 # Print configuration at startup
-print("\n" + "="*60)
+print("\n" + "="*70)
 print("Configuration Loaded:")
-print("="*60)
-print(f"LLM Provider: {settings.llm_provider}")
-print(f"OpenAI Key: {'✓ Set' if settings.openai_api_key else '✗ Not set'}")
-print(f"Gemini Key: {'✓ Set' if settings.gemini_api_key else '✗ Not set'}")
-print(f"Input Moderation: {settings.enable_input_moderation}")
-print(f"Output Moderation: {settings.enable_output_moderation}")
-print("="*60 + "\n")
+print("="*70)
+print(f"LLM Provider: {settings.llm_provider.upper()}")
+print(f"\nOpenAI:")
+print(f"  API Key: {'✓ Set' if settings.openai_api_key else '✗ Not set'}")
+print(f"  Model: {settings.openai_model}")
+print(f"  Base URL: {settings.openai_base_url}")
+print(f"\nGemini:")
+print(f"  API Key: {'✓ Set' if settings.gemini_api_key else '✗ Not set'}")
+print(f"  Model: {settings.gemini_model}")
+print(f"  Base URL: {settings.gemini_base_url}")
+print(f"\nGuardrails:")
+print(f"  Input Moderation: {settings.enable_input_moderation}")
+print(f"  Output Moderation: {settings.enable_output_moderation}")
+print(f"\nLogging Level: {settings.log_level}")
+print("="*70 + "\n")
 
 # Validate configuration
-if settings.llm_provider == "openai" and not settings.openai_api_key:
-    print(f"⚠️  WARNING: OpenAI provider selected but OPENAI_API_KEY not set")
-elif settings.llm_provider == "gemini" and not settings.gemini_api_key:
-    print(f"⚠️  WARNING: Gemini provider selected but GEMINI_API_KEY not set")
-elif settings.llm_provider not in ["openai", "gemini"]:
-    print(f"⚠️  WARNING: Unknown LLM provider: {settings.llm_provider}")
+logger.info(f"Loading configuration for provider: {settings.llm_provider.upper()}")
+
+if settings.llm_provider.lower() == "openai":
+    if not settings.openai_api_key:
+        logger.error("⚠️  ERROR: OpenAI provider selected but OPENAI_API_KEY not set")
+    else:
+        logger.info("✓ OpenAI provider configured successfully")
+elif settings.llm_provider.lower() == "gemini":
+    if not settings.gemini_api_key:
+        logger.error("⚠️  ERROR: Gemini provider selected but GEMINI_API_KEY not set")
+    else:
+        logger.info("✓ Gemini provider configured successfully")
+else:
+    logger.error(f"⚠️  ERROR: Unknown LLM provider: {settings.llm_provider}")
+

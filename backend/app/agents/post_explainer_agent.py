@@ -1,5 +1,6 @@
 """Core agent for explaining social media posts."""
 
+import logging
 from typing import Dict, List, Optional, Any
 from app.models.schemas import Source
 from app.llm.model_router import ModelRouter
@@ -9,11 +10,14 @@ from app.guardrails.moderation import ModerationGuardrail
 from app.observability.phoenix_tracing import PhoenixTracer
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 class PostExplainerAgent:
     """6-step agent for explaining posts with context and citations."""
     
     def __init__(self):
+        logger.info("Initializing PostExplainerAgent")
         self.model_router = ModelRouter()
         self.vector_store = VectorStore()
         self.web_search = WebSearch()
@@ -22,7 +26,9 @@ class PostExplainerAgent:
     
     async def initialize(self):
         """Initialize agent components."""
+        logger.info("Initializing vector store...")
         await self.vector_store.initialize()
+        logger.info("✓ PostExplainerAgent fully initialized")
     
     async def explain_post(self, post_content: str, image_url: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -36,52 +42,68 @@ class PostExplainerAgent:
         5. Generate explanation - LLM creates explanation with citations
         6. Output guardrail - Check generated content (optional)
         """
+        logger.info(f"Starting explain_post workflow for post ({len(post_content)} chars)")
         
         # Step 1: Input guardrail (optional, fail gracefully)
         try:
+            logger.debug("Step 1: Running input guardrail")
             moderation_result = await self._input_guardrail(post_content)
             if moderation_result.get("flagged"):
                 raise ValueError(f"Input flagged for moderation: {moderation_result.get('categories')}")
+            logger.info("✓ Step 1: Input guardrail passed")
         except Exception as e:
-            print(f"Input moderation skipped: {e}")
+            logger.warning(f"✗ Step 1: Input moderation skipped: {e}")
         
         # Step 2: Retrieve context
+        logger.debug("Step 2: Retrieving context")
         sources = await self._retrieve_context(post_content)
+        logger.info(f"✓ Step 2: Retrieved {len(sources)} sources")
         
         # Step 3: Analyze image (if provided, optional)
         # Only attempt if we have a valid API key for the provider
         image_analysis = None
         if image_url:
+            logger.debug("Step 3: Analyzing image")
             # Check if we have valid API key for the configured provider
             has_valid_key = (
-                (settings.llm_provider == "openai" and settings.openai_api_key) or
-                (settings.llm_provider == "gemini" and settings.gemini_api_key)
+                (settings.llm_provider.lower() == "openai" and settings.openai_api_key) or
+                (settings.llm_provider.lower() == "gemini" and settings.gemini_api_key)
             )
             
             if has_valid_key:
                 try:
                     image_analysis = await self._analyze_image(image_url)
+                    logger.info(f"✓ Step 3: Image analysis completed ({len(image_analysis)} chars)")
                 except Exception as e:
-                    print(f"Image analysis skipped: {e}")
+                    logger.error(f"✗ Step 3: Image analysis failed: {e}")
                     image_analysis = None
             else:
-                print(f"Image analysis skipped: No valid API key for {settings.llm_provider}")
+                logger.warning(f"✗ Step 3: Image analysis skipped - No valid API key for {settings.llm_provider}")
+        else:
+            logger.debug("Step 3: Skipped (no image URL provided)")
         
         # Step 4: Rerank context
+        logger.debug("Step 4: Reranking context")
         sources = await self._rerank_context(post_content, sources)
+        logger.info(f"✓ Step 4: Reranked to top {len(sources)} sources")
         
         # Step 5: Generate explanation
+        logger.debug("Step 5: Generating explanation")
         explanation_bullets = await self._generate_explanation(post_content, sources, image_analysis)
+        logger.info(f"✓ Step 5: Generated {len(explanation_bullets)} explanation bullets")
         
         # Step 6: Output guardrail (optional, fail gracefully)
         try:
+            logger.debug("Step 6: Running output guardrail")
             full_text = " ".join(explanation_bullets)
             output_check = await self._output_guardrail(full_text)
             if output_check.get("flagged"):
-                print(f"Warning: Output flagged for moderation: {output_check.get('categories')}")
+                logger.warning(f"Output flagged for moderation: {output_check.get('categories')}")
+            logger.info("✓ Step 6: Output guardrail passed")
         except Exception as e:
-            print(f"Output moderation skipped: {e}")
+            logger.warning(f"✗ Step 6: Output moderation skipped: {e}")
         
+        logger.info("✓ Explain_post workflow completed successfully")
         return {
             "explanation": explanation_bullets,
             "sources": sources,
@@ -97,11 +119,15 @@ class PostExplainerAgent:
     
     async def _retrieve_context(self, query: str) -> List[Source]:
         """Step 2: Retrieve context from vector store and web search."""
+        logger.debug(f"_retrieve_context: Searching for '{query}'")
         sources = []
         
         # Vector store search (might be empty)
         try:
+            logger.debug("Searching vector store...")
             vector_results = await self.vector_store.search(query, k=settings.top_k_documents)
+            count = len(vector_results)
+            logger.info(f"  ✓ Vector store returned {count} results")
             for doc, relevance in vector_results:
                 sources.append(Source(
                     title=doc.get("title", "Unknown Source"),
@@ -110,11 +136,14 @@ class PostExplainerAgent:
                     url=doc.get("url")
                 ))
         except Exception as e:
-            print(f"Vector store search error: {e}")
+            logger.warning(f"  ✗ Vector store search error: {e}")
         
         # Web search (always try)
         try:
+            logger.debug("Searching web...")
             web_results = await self.web_search.search(query, num_results=5)
+            count = len(web_results)
+            logger.info(f"  ✓ Web search returned {count} results")
             for result in web_results:
                 sources.append(Source(
                     title=result.get("title", "Web Result"),
@@ -123,10 +152,11 @@ class PostExplainerAgent:
                     url=result.get("url")
                 ))
         except Exception as e:
-            print(f"Web search error: {e}")
+            logger.warning(f"  ✗ Web search error: {e}")
         
         # If no sources found, create a placeholder
         if not sources:
+            logger.warning("No sources found - creating placeholder")
             sources.append(Source(
                 title="No sources found",
                 context=f"Could not find context for query: {query}",
@@ -134,6 +164,7 @@ class PostExplainerAgent:
                 url=None
             ))
         
+        logger.debug(f"_retrieve_context: Total sources collected: {len(sources)}")
         self.tracer.log_retrieval(query, len(sources), sources[0].relevance_score if sources else None)
         return sources
     
@@ -159,6 +190,8 @@ class PostExplainerAgent:
     
     async def _generate_explanation(self, post: str, sources: List[Source], image_analysis: Optional[str] = None) -> List[str]:
         """Step 5: Generate explanation with citations."""
+        logger.debug("_generate_explanation: Building context and prompt")
+        
         # Build context string
         context_text = "\n".join([
             f"- {s.title}: {s.context} (Score: {s.relevance_score:.2f})"
@@ -186,28 +219,33 @@ Provide concise, informative bullet points that explain the post using the conte
         
         try:
             # Generate explanation
+            logger.debug("_generate_explanation: Calling LLM")
             response = await self.model_router.generate_completion(messages)
+            logger.debug(f"_generate_explanation: LLM returned {len(response)} chars")
             self.tracer.log_llm_call(settings.openai_model, messages, response)
             
             # Parse response into bullet points
             bullets = [line.strip() for line in response.split('\n') if line.strip() and line.strip().startswith('-')]
+            logger.info(f"_generate_explanation: Parsed {len(bullets)} bullet points")
             
             self.tracer.log_agent_step("generate_explanation", {"context_sources": len(sources)}, {"explanation_bullets": len(bullets)})
             
             return bullets if bullets else [response]
         except Exception as e:
-            print(f"LLM generation failed: {e}")
+            logger.error(f"✗ LLM generation failed: {e}", exc_info=True)
+            
             # Check if we have API key configured
             has_valid_key = (
-                (settings.llm_provider == "openai" and settings.openai_api_key) or
-                (settings.llm_provider == "gemini" and settings.gemini_api_key)
+                (settings.llm_provider.lower() == "openai" and settings.openai_api_key) or
+                (settings.llm_provider.lower() == "gemini" and settings.gemini_api_key)
             )
             
             if not has_valid_key:
-                print(f"No valid API key for {settings.llm_provider}")
+                logger.warning(f"No valid API key for {settings.llm_provider} - using fallback")
             
             # Fallback: generate explanation from sources directly
             if sources:
+                logger.info("Using fallback: generating explanation from sources")
                 bullets = [
                     f"- {sources[0].title}: {sources[0].context}"
                 ]
@@ -215,6 +253,7 @@ Provide concise, informative bullet points that explain the post using the conte
                 for source in sources[1:3]:
                     bullets.append(f"- {source.title}: {source.context}")
             else:
+                logger.warning("No sources available for fallback explanation")
                 bullets = ["Unable to generate explanation - no sources available"]
             
             return bullets

@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -11,7 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config import settings
-from app.agents.post_explainer_agent import PostExplainerAgent
+
+# Configure root logger
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -20,19 +23,22 @@ async def lifespan(app: FastAPI):
     
     # Startup
     try:
+        logger.info("Starting application...")
+        from app.agents.post_explainer_agent import PostExplainerAgent
+        
         agent = PostExplainerAgent()
         await agent.initialize()
         app.state.agent = agent
-        print("✓ Agent initialized")
+        logger.info("✓ Agent initialized and ready")
     except Exception as e:
-        print(f"✗ Agent initialization failed: {e}")
+        logger.error(f"✗ Agent initialization failed: {e}", exc_info=True)
         app.state.agent = None
         raise
     
     yield
     
     # Shutdown
-    print("✓ Agent cleanup")
+    logger.info("✓ Agent cleanup completed")
 
 
 # Create FastAPI app
@@ -56,7 +62,10 @@ app.add_middleware(
 from app.api.routes import router
 app.include_router(router)
 
+logger.info("✓ FastAPI application created and routes registered")
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info(f"Starting server on http://0.0.0.0:8000")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level=settings.log_level.lower())
