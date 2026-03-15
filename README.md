@@ -2,6 +2,23 @@
 
 AI agent that explains social media posts by searching for relevant context and returning **3–5 bullet** explanations with **citations** (e.g. [S1], [S2]). Try X’s “Explain this post” to calibrate.
 
+## Exercise requirements (spec alignment)
+
+| Requirement | Status |
+|-------------|--------|
+| **AI agent** that explains social media posts by searching for and synthesizing relevant context | ✓ Agent in `backend/`; flow: retrieve (vector DB + web + optional social/news) → LLM → 3–5 bullets with citations |
+| **Social/public sources** (X, Reddit, news, blogs); no Bluesky assumption | ✓ Reddit, Twitter/X, NewsData, NewsAPI, Guardian, Wikipedia-style web; all optional |
+| **OpenAI API key** provided | ✓ `OPENAI_API_KEY` in `.env`; `LLM_PROVIDER=openai` to use it |
+| **Frontend: React** | ✓ `frontend/` is Create React App |
+| **Backend: FastAPI** | ✓ `backend/app/main.py` is FastAPI |
+| **Optional ML module** (embeddings, reranking, classification, or evaluation) | ✓ Embeddings for vector search; embedding-based reranking + relevance threshold; eval harness |
+| **One GitHub repo** with agent + eval harness + README | ✓ This repo |
+| **Evaluation harness:** ≥10 test posts, expected outputs | ✓ `evaluation/test_posts.json` (11 posts, `expected_contains`); `run_eval.py` checks 3–5 bullets, [S#] citations, expected facts |
+| **README:** setup instructions and key design decisions | ✓ Quick Start → QUICKSTART.md; Design Decisions section below |
+| **Bonus: Image understanding** | ✓ Optional `image_url` on `POST /explain`; vision analysis when provided |
+| **Bonus: Multi-LLM comparison** | ✓ OpenAI and Gemini via `LLM_PROVIDER` and API keys |
+| **Bonus: Source citations** | ✓ [S1], [S2] in bullets; sources list; hover-to-highlight in UI |
+
 ## Quick Start
 
 See [QUICKSTART.md](QUICKSTART.md) for setup instructions.
