@@ -2,6 +2,13 @@
 
 AI agent that explains social media posts by searching for relevant context and returning **3–5 bullet** explanations with **citations** (e.g. [S1], [S2]). Try X’s “Explain this post” to calibrate.
 
+## Clone First
+
+```bash
+git clone https://github.com/aziz01000/socialPostExplainer.git
+cd socialPostExplainer
+```
+
 ## Fastest Start (Docker, 2 mins)
 
 Do **not** create `.env` from scratch. Copy the template and fill only required values:
@@ -29,7 +36,7 @@ docker compose up --build
 Open:
 - Frontend: `http://localhost:3000`
 - Backend API docs: `http://localhost:8000/docs`
-- Phoenix (optional): `http://localhost:6006`
+- Phoenix Tracing (optional): `http://localhost:6006`
 
 ## Exercise requirements (spec alignment)
 
