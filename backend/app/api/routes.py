@@ -1,9 +1,13 @@
 """API routes."""
 
+import base64
 import time
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from app.models.schemas import (
+    AskRequest,
+    AskResponse,
     ExplainRequest,
     ExplainResponse,
     QARequest,
@@ -27,6 +31,95 @@ async def health_check():
     )
 
 
+def _to_data_url(image_base64: Optional[str]) -> Optional[str]:
+    """Convert raw base64 image bytes to data URL."""
+    if not image_base64:
+        return None
+    raw = image_base64.strip()
+    if not raw:
+        return None
+    if raw.startswith("data:image/"):
+        return raw
+    return f"data:image/png;base64,{raw}"
+
+
+@router.post("/ask", response_model=AskResponse)
+async def ask(request: AskRequest, req: Request):
+    """
+    Unified endpoint with all explain features:
+    - question (required)
+    - image_url or image upload (via image_base64 / /ask/upload)
+    - sources_type filter: all/social/news
+    """
+    agent = req.app.state.agent
+    if not agent:
+        raise HTTPException(status_code=500, detail="Agent not initialized")
+
+    if request.sources_type not in ["all", "social", "news"]:
+        raise HTTPException(status_code=400, detail="sources_type must be 'all', 'social', or 'news'")
+
+    try:
+        start_time = time.time()
+        image_input = _to_data_url(request.image_base64) or request.image_url
+
+        async with trace_request("ask", (request.question or "")[:300]):
+            result = await agent.explain_post(
+                post_content=request.question,
+                image_url=image_input,
+                sources_type=request.sources_type,
+            )
+
+        processing_time = (time.time() - start_time) * 1000
+        sources_out = result["sources"][: request.context_limit]
+        context_sources_used, context_note = _context_sources_from_sources(sources_out)
+
+        return AskResponse(
+            explanation=result["explanation"],
+            sources=sources_out,
+            image_analysis=result.get("image_analysis"),
+            processing_time_ms=processing_time,
+            tool_trace=result.get("tool_trace") if request.debug else None,
+            context_sources_used=context_sources_used,
+            context_note=context_note,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Ask error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ask/upload", response_model=AskResponse)
+async def ask_upload(
+    req: Request,
+    question: str = Form(...),
+    sources_type: str = Form("all"),
+    context_limit: int = Form(5),
+    debug: bool = Form(False),
+    image_url: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+):
+    """Same as /ask, but accepts multipart file upload."""
+    image_base64 = None
+    if image and image.filename:
+        try:
+            content = await image.read()
+            if content:
+                image_base64 = base64.b64encode(content).decode("ascii")
+        except Exception as e:
+            logger.warning(f"Failed reading uploaded image: {e}")
+
+    body = AskRequest(
+        question=question,
+        image_url=image_url,
+        image_base64=image_base64,
+        sources_type=sources_type,
+        context_limit=context_limit,
+        debug=debug,
+    )
+    return await ask(body, req)
+
+
 @router.post("/explain", response_model=ExplainResponse)
 async def explain_post(request: ExplainRequest, req: Request):
     """
@@ -48,7 +141,8 @@ async def explain_post(request: ExplainRequest, req: Request):
         async with trace_request("explain_post", input_preview):
             result = await agent.explain_post(
                 post_content=request.post_content,
-                image_url=request.image_url
+                image_url=request.image_url,
+                sources_type="all",
             )
         processing_time = (time.time() - start_time) * 1000  # Convert to ms
         sources_out = result["sources"][:request.context_limit]

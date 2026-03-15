@@ -91,3 +91,27 @@ class HealthResponse(BaseModel):
     """Health check response."""
     status: str
     version: str
+
+
+class AskRequest(BaseModel):
+    """Unified request: one endpoint with all explain features."""
+    question: str = Field(..., min_length=1, max_length=5000)
+    image_url: Optional[str] = None
+    image_base64: Optional[str] = Field(
+        default=None,
+        description="Optional base64-encoded image content (without data URL prefix).",
+    )
+    sources_type: str = Field(default="all", description="Source type: 'all', 'social', or 'news'")
+    context_limit: int = Field(default=5, ge=1, le=20)
+    debug: bool = Field(default=False, description="Include tool traces in the response")
+
+
+class AskResponse(BaseModel):
+    """Unified response for /ask endpoint."""
+    explanation: List[str]
+    sources: List[Source]
+    image_analysis: Optional[str] = None
+    processing_time_ms: float
+    tool_trace: Optional[List[Dict[str, Any]]] = None
+    context_sources_used: Optional[ContextSourcesUsed] = None
+    context_note: Optional[str] = None

@@ -64,6 +64,7 @@ async def _node_retrieve(state: ExplainState) -> ExplainState:
     agent = state["agent"]
     post_content = state["post_content"]
     image_analysis = state.get("image_analysis")
+    sources_type = state.get("sources_type") or "all"
     tool_trace = state.get("tool_trace") or []
     sources = await build_sources_for_post(
         post_content=post_content,
@@ -72,6 +73,7 @@ async def _node_retrieve(state: ExplainState) -> ExplainState:
         external_sources=agent.external_sources,
         model_router=agent.model_router,
         top_k=10,
+        sources_type=sources_type,
         tool_trace=tool_trace,
         additional_search_context=image_analysis,
     )

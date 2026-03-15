@@ -11,6 +11,7 @@ class ExplainState(TypedDict, total=False):
 
     post_content: str
     image_url: Optional[str]
+    sources_type: str
     agent: Any  # PostExplainerAgent (injected at invoke)
     tool_trace: Annotated[List[Dict[str, Any]], operator.add]
     moderation_result: Dict[str, Any]

@@ -37,7 +37,12 @@ class PostExplainerAgent:
         await self.vector_store.initialize()
         logger.info("✓ PostExplainerAgent fully initialized")
 
-    async def explain_post(self, post_content: str, image_url: Optional[str] = None) -> Dict[str, Any]:
+    async def explain_post(
+        self,
+        post_content: str,
+        image_url: Optional[str] = None,
+        sources_type: str = "all",
+    ) -> Dict[str, Any]:
         """
         Explain a social media post via LangGraph workflow.
 
@@ -51,6 +56,7 @@ class PostExplainerAgent:
         initial_state = {
             "post_content": post_content,
             "image_url": image_url,
+            "sources_type": sources_type,
             "agent": self,
             "tool_trace": [],
         }
