@@ -4,6 +4,8 @@
 
 ### 1) Create `.env` from template
 
+Do **not** create `.env` manually. Always copy from `backend/.env.example`.
+
 ```bash
 cp backend/.env.example backend/.env
 ```
@@ -42,7 +44,7 @@ docker compose up --build
 - Frontend: `http://localhost:3000`
 - Backend health: `http://localhost:8000/health`
 - Backend docs: `http://localhost:8000/docs`
-- Phoenix traces (optional): `http://localhost:6006`
+- Phoenix traces: `http://localhost:6006`
 
 ---
 

@@ -4,6 +4,8 @@ AI agent that explains social media posts by searching for relevant context and 
 
 ## Fastest Start (Docker, 2 mins)
 
+Do **not** create `.env` from scratch. Copy the template and fill only required values:
+
 ```bash
 cp backend/.env.example backend/.env
 ```
@@ -63,10 +65,75 @@ contextual-post-explainer/
 
 ## Agent
 
-- **Input:** A post (text; optional image URL).
-- **Flow:** Moderation → optional image analysis → retrieve context (vector DB + web + optional social/news) → LLM generation → 3–5 bullets with citations → output moderation.
-- **Output:** 3–5 bullets, sources list, optional image analysis, `context_sources_used` and `context_note` (vector DB / web / external).
-- **API:** `POST /explain` with `post_content` and optional `image_url`.
+- **Input:** `question` text, optional image URL or uploaded image, and `sources_type` filter (`all|social|news`).
+- **Flow:** Input moderation → optional image analysis → retrieval (vector DB + web + optional external APIs) → rerank/dedupe → LLM generation (3–5 bullets with [S#] citations) → output moderation.
+- **Output:** Explanation bullets, sources, optional image analysis, `context_sources_used`, and `context_note`.
+- **Primary API:** `POST /ask` (JSON) and `POST /ask/upload` (multipart image upload).
+
+## Architecture Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                           Client Request                             │
+│   POST /ask (question, image_url|image_base64, sources_type)        │
+│   or POST /ask/upload (multipart image file)                         │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+                   ┌──────────────────────────────┐
+                   │ FastAPI Route Layer          │
+                   │ - validate inputs            │
+                   │ - normalize uploaded image   │
+                   └──────────────┬───────────────┘
+                                  │
+                                  ▼
+                   ┌──────────────────────────────┐
+                   │ Input Guardrail              │
+                   │ (keyword + OpenAI moderation)│
+                   └──────────────┬───────────────┘
+                                  │
+                      ╔═══════════╩═══════════╗
+                      ▼                       ▼
+                 ✓ PASS                    ✗ BLOCK
+                 continue                  HTTP 400
+                      │
+                      ▼
+          ┌────────────────────────────────────────────┐
+          │ LangGraph Explain Workflow                 │
+          │ 1) maybe_image: vision analyze (optional)  │
+          │ 2) retrieve: vector_db + web + external    │
+          │ 3) rerank: embeddings + relevance filter    │
+          │ 4) generate: 3-5 bullets with [S#]         │
+          │ 5) post_process: enforce citation format    │
+          └──────────────────────┬──────────────────────┘
+                                 │
+                                 ▼
+                   ┌──────────────────────────────┐
+                   │ Output Guardrail             │
+                   │ (moderation check)           │
+                   └──────────────┬───────────────┘
+                                  │
+                      ╔═══════════╩═══════════╗
+                      ▼                       ▼
+                 ✓ PASS                    ✗ BLOCK
+                 HTTP 200                  HTTP 400
+```
+
+## LLM Provider Choice (OpenAI vs Gemini)
+
+You can switch providers without changing code by editing `backend/.env`:
+
+```env
+# Chat/completions provider
+LLM_PROVIDER=openai        # or gemini
+
+# Embeddings provider (can be different)
+EMBEDDING_PROVIDER=openai  # or gemini
+```
+
+- **OpenAI mode:** set `OPENAI_API_KEY`.
+- **Gemini mode:** set `GEMINI_API_KEY`.
+- **Mixed mode supported:** for example `LLM_PROVIDER=openai` with `EMBEDDING_PROVIDER=gemini`.
 
 ## Evaluation Harness
 
@@ -81,7 +148,7 @@ contextual-post-explainer/
 - **Retrieval:** FAISS vector store (local docs) + Wikipedia (web) + optional Reddit/News/social APIs. Rerank with embeddings; dedupe by (title, url).
 - **Citations:** Model is instructed to cite sources as [S1], [S2]; post-processing ensures every bullet has a citation when sources exist.
 - **Guardrails:** Input and output moderation (keyword + provider) to block policy-violating content.
-- **Multi-provider:** LLM and embeddings support OpenAI and Gemini via `LLM_PROVIDER` / `OPENAI_API_KEY` or `GEMINI_API_KEY`.
+- **Multi-provider:** LLM and embeddings support OpenAI and Gemini via `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `OPENAI_API_KEY`, and `GEMINI_API_KEY`.
 - **Orchestration:** LangGraph workflow (moderation → optional image → retrieve → generate → post-process → output moderation) for clear steps and future branching.
 - **Observability:** Arize Phoenix for tracing every LLM call; root span per request so traces stay organized.
 
@@ -99,7 +166,7 @@ Then open **http://localhost:6006** to view traces. Ensure `PHOENIX_COLLECTOR_EN
 
 - [QUICKSTART.md](QUICKSTART.md) - 5-minute setup
 - [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment
-- [docs/architecture.md](docs/architecture.md) - System design
+
 
 ## License
 
