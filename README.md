@@ -1,5 +1,6 @@
 # Contextual Post Explainer
 
+AI-powered FastAPI + React application that explains social posts with retrieval-backed context and source citations.
 
 ## Clone First
 
@@ -8,15 +9,15 @@ git clone https://github.com/aziz01000/socialPostExplainer.git
 cd socialPostExplainer
 ```
 
-## Fastest Start (Docker, 2 mins)
+## Quick Start (Docker, ~2 minutes)
 
-Do **not** create `.env` from scratch. Copy the template and fill only required values:
+1) Copy the environment template (do **not** create `.env` from scratch):
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-Edit `backend/.env` and set only what is required:
+2) Edit `backend/.env` and set only required values:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
@@ -26,18 +27,20 @@ EMBEDDING_MODEL=text-embedding-3-small
 EMBEDDING_DIMENSIONS=1536
 ```
 
-Then run:
+3) Run:
 
 ```bash
 docker compose up --build
 ```
 
-Open:
+4) Open:
 - Frontend: `http://localhost:3000`
 - Backend API docs: `http://localhost:8000/docs`
 - Phoenix Tracing (optional): `http://localhost:6006`
 
-## Exercise requirements (spec alignment)
+> Security note: keep `backend/.env` private and never commit API keys.
+
+## Requirement Checklist
 
 | Requirement | Status |
 |-------------|--------|
@@ -50,11 +53,11 @@ Open:
 | **One GitHub repo** with agent + eval harness + README | ✓ This repo |
 | **Evaluation harness:** ≥10 test posts, expected outputs | ✓ `evaluation/test_posts.json` (11 posts, `expected_contains`); `run_eval.py` checks 3–5 bullets, [S#] citations, expected facts |
 | **README:** setup instructions and key design decisions | ✓ Quick Start → QUICKSTART.md; Design Decisions section below |
-| **Bonus: Image understanding** | ✓ Optional `image_url` on `POST /explain`; vision analysis when provided |
+| **Bonus: Image understanding** | ✓ Optional `image_url` on `POST /ask` (or `POST /ask/upload` for files); vision analysis when provided |
 | **Bonus: Multi-LLM comparison** | ✓ OpenAI and Gemini via `LLM_PROVIDER` and API keys |
 | **Bonus: Source citations** | ✓ [S1], [S2] in bullets; sources list; hover-to-highlight in UI |
 
-## Quick Start
+## Full Setup Options
 
 See [QUICKSTART.md](QUICKSTART.md) for full setup options (Docker + local dev).
 
@@ -74,7 +77,7 @@ contextual-post-explainer/
 - **Input:** `question` text, optional image URL or uploaded image, and `sources_type` filter (`all|social|news`).
 - **Flow:** Input moderation → optional image analysis → retrieval (vector DB + web + optional external APIs) → rerank/dedupe → LLM generation (3–5 bullets with [S#] citations) → output moderation.
 - **Output:** Explanation bullets, sources, optional image analysis, `context_sources_used`, and `context_note`.
-- **Primary API:** `POST /ask` (JSON) and `POST /ask/upload` (multipart image upload).
+- **Primary API:** `POST /ask` (JSON) and `POST /ask/upload` (multipart image upload). Legacy compatibility endpoint: `POST /explain`.
 
 ## Architecture Diagram
 
@@ -162,11 +165,7 @@ EMBEDDING_PROVIDER=openai  # or gemini
 
 LLM calls are traced to [Arize Phoenix](https://docs.arize.com/phoenix/) when `PHOENIX_ENABLED=true`. **Run the Phoenix server via Docker** (do not `pip install arize-phoenix` in the same env as the app—it can conflict with Pydantic v2):
 
-```bash
-make phoenix
-```
 
-Then open **http://localhost:6006** to view traces. Ensure `PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006` (or leave unset for default) in `backend/.env`.
 
 ## Documentation
 
