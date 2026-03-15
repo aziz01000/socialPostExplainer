@@ -1,12 +1,60 @@
 # Quick Start
 
+## Option A (Recommended): Docker Compose
+
+### 1) Create `.env` from template
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+### 2) Edit only required variables in `backend/.env`
+
+Minimum required:
+
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+LLM_PROVIDER=openai
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSIONS=1536
+```
+
+Optional (if you want external social/news APIs):
+
+```env
+REDDIT_CLIENT_ID=
+REDDIT_CLIENT_SECRET=
+TWITTER_BEARER_TOKEN=
+NEWSDATA_API_KEY=
+NEWSAPI_API_KEY=
+GUARDIAN_API_KEY=
+```
+
+### 3) Run everything
+
+```bash
+docker compose up --build
+```
+
+### 4) Access services
+
+- Frontend: `http://localhost:3000`
+- Backend health: `http://localhost:8000/health`
+- Backend docs: `http://localhost:8000/docs`
+- Phoenix traces (optional): `http://localhost:6006`
+
+---
+
+## Option B: Local Development (without Docker)
+
 ## Prerequisites
 
 - Python 3.11+
 - Node.js 18+
 - OpenAI API key
 
-## Setup
+## Setup (local)
 
 ### 1. Backend
 

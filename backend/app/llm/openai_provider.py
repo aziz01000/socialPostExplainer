@@ -3,8 +3,10 @@
 import httpx
 import json
 import logging
+import asyncio
 from typing import Optional, List
 from urllib.parse import urlparse
+from openai import OpenAI
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,14 @@ class OpenAIProvider:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         self.client = httpx.AsyncClient(headers=headers)
+        # Official OpenAI SDK client (used for moderation).
+        # Keep base_url support for compatible endpoints.
+        sdk_kwargs = {}
+        if self.api_key:
+            sdk_kwargs["api_key"] = self.api_key
+        if self.base_url:
+            sdk_kwargs["base_url"] = self.base_url
+        self.sdk_client = OpenAI(**sdk_kwargs)
     
     async def generate_embeddings(self, texts: List[str], model: str = "text-embedding-3-small") -> List[List[float]]:
         """Generate embeddings for texts."""
@@ -89,25 +99,31 @@ class OpenAIProvider:
     async def check_moderation(self, text: str) -> dict:
         """Check text against moderation API."""
         logger.debug(f"Running moderation check on text ({len(text)} chars)")
-        url = f"{self.base_url}/moderations"
-        payload = {
-            "input": text,
-            "model": "text-moderation-latest",
-        }
-        
+
         try:
-            response = await self.client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            
-            results = data.get("results", [])
+            # Use official SDK style:
+            # response = client.moderations.create(model="omni-moderation-latest", input=text)
+            response = await asyncio.to_thread(
+                self.sdk_client.moderations.create,
+                model="omni-moderation-latest",
+                input=text,
+            )
+
+            results = getattr(response, "results", None) or []
             if results:
                 result = results[0]
-                flagged = result.get("flagged", False)
+                flagged = bool(getattr(result, "flagged", False))
+                categories_obj = getattr(result, "categories", None)
+                if categories_obj is None:
+                    categories = {}
+                elif hasattr(categories_obj, "model_dump"):
+                    categories = categories_obj.model_dump()
+                else:
+                    categories = dict(categories_obj) if isinstance(categories_obj, dict) else {}
                 logger.info(f"✓ Moderation check complete (flagged: {flagged})")
                 return {
                     "flagged": flagged,
-                    "categories": result.get("categories", {})
+                    "categories": categories,
                 }
             logger.warning("No moderation results returned")
             return {"flagged": False, "categories": {}}

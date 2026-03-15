@@ -96,14 +96,15 @@ async def trace_llm(
     invocation_parameters: Optional[Dict[str, Any]] = None,
 ):
     """Context manager to trace an LLM (chat completion) call. Yields (span, set_output)."""
+    noop = lambda *_args, **_kwargs: None
     tracer = get_phoenix_tracer()
     if not tracer:
-        yield None, lambda x: None
+        yield None, noop
         return
     try:
         from opentelemetry.trace import Status, StatusCode
     except ImportError:
-        yield None, lambda x: None
+        yield None, noop
         return
     ctx = tracer.start_as_current_span(name, openinference_span_kind="llm")
     span = ctx.__enter__()
@@ -146,14 +147,15 @@ async def trace_embedding(
     input_texts: List[str],
 ):
     """Context manager to trace an embedding call."""
+    noop = lambda *_args, **_kwargs: None
     tracer = get_phoenix_tracer()
     if not tracer:
-        yield None, lambda x: None
+        yield None, noop
         return
     try:
         from opentelemetry.trace import Status, StatusCode
     except ImportError:
-        yield None, lambda x: None
+        yield None, noop
         return
     ctx = tracer.start_as_current_span(name, openinference_span_kind="embedding")
     span = ctx.__enter__()
@@ -188,14 +190,15 @@ async def trace_guardrail(
     input_preview: str,
 ):
     """Context manager to trace a guardrail/moderation call."""
+    noop = lambda *_args, **_kwargs: None
     tracer = get_phoenix_tracer()
     if not tracer:
-        yield None, lambda x: None
+        yield None, noop
         return
     try:
         from opentelemetry.trace import Status, StatusCode
     except ImportError:
-        yield None, lambda x: None
+        yield None, noop
         return
     ctx = tracer.start_as_current_span(name, openinference_span_kind="guardrail")
     span = ctx.__enter__()

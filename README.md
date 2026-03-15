@@ -2,6 +2,33 @@
 
 AI agent that explains social media posts by searching for relevant context and returning **3–5 bullet** explanations with **citations** (e.g. [S1], [S2]). Try X’s “Explain this post” to calibrate.
 
+## Fastest Start (Docker, 2 mins)
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Edit `backend/.env` and set only what is required:
+
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+LLM_PROVIDER=openai
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSIONS=1536
+```
+
+Then run:
+
+```bash
+docker compose up --build
+```
+
+Open:
+- Frontend: `http://localhost:3000`
+- Backend API docs: `http://localhost:8000/docs`
+- Phoenix (optional): `http://localhost:6006`
+
 ## Exercise requirements (spec alignment)
 
 | Requirement | Status |
@@ -21,7 +48,7 @@ AI agent that explains social media posts by searching for relevant context and 
 
 ## Quick Start
 
-See [QUICKSTART.md](QUICKSTART.md) for setup instructions.
+See [QUICKSTART.md](QUICKSTART.md) for full setup options (Docker + local dev).
 
 ## Project Structure
 
@@ -77,4 +104,3 @@ Then open **http://localhost:6006** to view traces. Ensure `PHOENIX_COLLECTOR_EN
 ## License
 
 See repository.
-nothing
