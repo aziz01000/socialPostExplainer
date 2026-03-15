@@ -8,6 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 import asyncio
 import re
+from urllib.parse import urlparse
 import numpy as np
 import time
 from app.retrieval.vector_store import VectorStore
@@ -20,9 +21,22 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 def _clean_post_for_query(text: str) -> str:
-    # Strip obvious URLs and excessive whitespace; keep hashtags and mentions.
-    t = re.sub(r"https?://\S+", "", text or "")
+    # Replace URLs with meaningful host/path tokens so URL-only inputs still retrieve relevant context.
+    def _url_to_terms(match: re.Match) -> str:
+        raw = match.group(0)
+        try:
+            p = urlparse(raw)
+            host = (p.netloc or "").replace("www.", "").split(".")[0]
+            path_terms = re.sub(r"[^a-zA-Z0-9]+", " ", p.path or "").strip()
+            combined = f"{host} {path_terms}".strip()
+            return combined or "link"
+        except Exception:
+            return "link"
+
+    t = re.sub(r"https?://\S+", _url_to_terms, text or "")
     t = re.sub(r"\s+", " ", t).strip()
+    if not t:
+        t = "social media post context"
     return t[:500]
 
 
@@ -50,10 +64,14 @@ async def build_sources_for_post(
     top_k: int = 8,
     sources_type: str = "all",
     tool_trace: Optional[List[Dict[str, Any]]] = None,
+    additional_search_context: Optional[str] = None,
 ) -> List[Source]:
     """Retrieve and rerank sources for a post."""
     trace = tool_trace if tool_trace is not None else []
-    query = _clean_post_for_query(post_content)
+    combined_query = (post_content or "").strip()
+    if additional_search_context:
+        combined_query = f"{combined_query}\n{additional_search_context.strip()}"
+    query = _clean_post_for_query(combined_query)
 
     # Retrieve in parallel. Fetch more from vector DB so we can rerank/filter by relevance.
     t0 = time.time()

@@ -30,14 +30,14 @@ async def _node_maybe_image(state: ExplainState) -> ExplainState:
     """Optionally run vision analysis if image_url is present."""
     agent = state["agent"]
     image_url = state.get("image_url")
-    tool_trace = state.get("tool_trace") or []
     if not image_url:
         return {}
     try:
         t0 = time.time()
         image_analysis = await agent.model_router.analyze_image(
             image_url,
-            "Describe the image and identify any entities, memes, or text that provide context for the post.",
+            "Describe the image with concrete details useful for retrieval: visible text, people, "
+            "brands, products, logos, place names, and any meme/topic references.",
         )
         entry = {
             "tool": "vision.analyze_image",
@@ -63,6 +63,7 @@ async def _node_retrieve(state: ExplainState) -> ExplainState:
     """Retrieve and rerank sources (FAISS + web + external)."""
     agent = state["agent"]
     post_content = state["post_content"]
+    image_analysis = state.get("image_analysis")
     tool_trace = state.get("tool_trace") or []
     sources = await build_sources_for_post(
         post_content=post_content,
@@ -72,6 +73,7 @@ async def _node_retrieve(state: ExplainState) -> ExplainState:
         model_router=agent.model_router,
         top_k=10,
         tool_trace=tool_trace,
+        additional_search_context=image_analysis,
     )
     return {"sources": sources}
 

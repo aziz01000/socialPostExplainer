@@ -4,6 +4,7 @@ import httpx
 import json
 import logging
 from typing import Optional, List
+from urllib.parse import urlparse
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -118,32 +119,34 @@ class OpenAIProvider:
     async def analyze_image(self, image_url: str, question: str) -> tuple[str, dict]:
         """Analyze image using vision model. Returns (content, usage_dict)."""
         logger.info(f"Analyzing image from URL: {image_url}")
-        
-        # Try vision models in order of capability
-        # gpt-4o supports vision, gpt-4-turbo is fallback, then use configured model
+
+        # Accept direct image URLs or data URLs; reject plain webpages early.
+        if not isinstance(image_url, str):
+            raise ValueError("Invalid image input: expected URL string")
+        image_url = image_url.strip()
+        if image_url.startswith("data:image/"):
+            pass
+        elif image_url.startswith("http://") or image_url.startswith("https://"):
+            if not self._looks_like_direct_image_url(image_url):
+                raise ValueError(
+                    "Image URL appears to be a webpage, not a direct image file. "
+                    "Use a direct image link (jpg/png/webp/gif) or upload the image."
+                )
+        else:
+            raise ValueError(
+                "Invalid image URL. Expected http(s) image URL or data:image/... URL."
+            )
+
+        # Prefer currently-supported vision models first.
         vision_models_to_try = []
-        
-        # Try common vision models first
-        if self.model in ["gpt-4o-mini", "gpt-4o"]:
-            vision_models_to_try.append(self.model)
-        
-        # Add additional vision models
-        vision_models_to_try.extend(["gpt-4-turbo", "gpt-4-vision-preview"])
-        
-        # Fall back to configured model if different
-        if self.model not in vision_models_to_try:
-            vision_models_to_try.append(self.model)
+        for m in [self.model, "gpt-4o", "gpt-4o-mini"]:
+            if m and m not in vision_models_to_try:
+                vision_models_to_try.append(m)
         
         last_error = None
         
         for model in vision_models_to_try:
             url = f"{self.base_url}/chat/completions"
-            
-            # Ensure URL is properly formatted
-            if not isinstance(image_url, str) or not (image_url.startswith('http://') or image_url.startswith('https://')):
-                error_msg = f"Invalid image URL: {image_url}"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
             
             payload = {
                 "model": model,
@@ -201,8 +204,8 @@ class OpenAIProvider:
                 logger.warning(f"Model '{model}' failed: {error_detail}")
                 last_error = error_detail
                 
-                # Try next model on 400/401/403/429 errors
-                if e.response.status_code in [400, 401, 403, 429]:
+                # Try next model on common model/input/permission/rate-limit errors
+                if e.response.status_code in [400, 401, 403, 404, 429]:
                     if model != vision_models_to_try[-1]:
                         logger.debug(f"Trying fallback model: {vision_models_to_try[vision_models_to_try.index(model) + 1]}")
                         continue
@@ -223,6 +226,20 @@ class OpenAIProvider:
         
         # Fallback error
         raise ValueError(f"Image analysis failed: {last_error}")
+
+    @staticmethod
+    def _looks_like_direct_image_url(url: str) -> bool:
+        """Heuristic check to avoid passing webpage URLs as image URLs."""
+        try:
+            parsed = urlparse(url)
+            path = (parsed.path or "").lower()
+            if any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")):
+                return True
+            # Common direct-image query hints from CDNs/storage
+            query = (parsed.query or "").lower()
+            return "format=jpg" in query or "format=png" in query or "fm=jpg" in query or "fm=png" in query
+        except Exception:
+            return False
     
     async def close(self):
         """Close HTTP client."""
