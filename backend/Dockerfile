@@ -27,4 +27,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "if [ ! -f /app/data/faiss.index ]; then echo 'FAISS index not found. Populating vector DB...'; python scripts/populate_vector_db.py || echo 'Vector DB population failed; continuing with text-search fallback.'; fi; uvicorn app.main:app --host 0.0.0.0 --port 8000"]
