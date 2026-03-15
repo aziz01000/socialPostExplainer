@@ -280,11 +280,13 @@ class ExternalSourcesSearch:
             return []
         
         try:
-            url = "https://open-platform.theguardian.com/search"
+            # Use Guardian Content API host; open-platform.theguardian.com/search returns 404.
+            url = "https://content.guardianapis.com/search"
             params = {
                 "q": query,
                 "api-key": self.guardian_api_key,
-                "page-size": min(limit, 200)
+                "page-size": min(limit, 200),
+                "show-fields": "byline,trailText",
             }
             
             logger.debug(f"Calling Guardian API with query: {query}")
@@ -294,12 +296,13 @@ class ExternalSourcesSearch:
             
             results = []
             for article in data.get("response", {}).get("results", [])[:limit]:
+                fields = article.get("fields", {}) or {}
                 results.append({
                     "platform": "guardian",
                     "title": article.get("webTitle", ""),
-                    "content": article.get("webTitle", ""),  # Guardian doesn't include content in search
+                    "content": fields.get("trailText", article.get("webTitle", "")),
                     "url": article.get("webUrl", ""),
-                    "author": article.get("byline", "Unknown"),
+                    "author": fields.get("byline", "Unknown"),
                     "score": 0.75,
                     "engagement": 0,
                     "published": article.get("webPublicationDate", ""),

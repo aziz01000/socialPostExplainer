@@ -1,6 +1,5 @@
 # Contextual Post Explainer
 
-AI agent that explains social media posts by searching for relevant context and returning **3–5 bullet** explanations with **citations** (e.g. [S1], [S2]). Try X’s “Explain this post” to calibrate.
 
 ## Clone First
 
