@@ -1,8 +1,6 @@
 import React, { useState, useCallback } from "react";
-import { explainPost, socialQA } from "./api";
+import { ask, askWithUpload } from "./api";
 import "./App.css";
-
-const MODES = { explain: "explain", qa: "qa" };
 
 function sourcePlatformLabel(platform) {
   if (!platform) return "source";
@@ -74,36 +72,69 @@ function BulletWithCitations({ bullet, sources, highlightedSource, onCitationHov
   );
 }
 
-function ExplainFlow({ onResult }) {
-  const [post, setPost] = useState("");
+function AskFlow() {
+  const [question, setQuestion] = useState("");
+  const [sourcesType, setSourcesType] = useState("all");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [highlightedSource, setHighlightedSource] = useState(null);
 
+  const onImageFileChange = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setImageFile(null);
+      setImagePreview(null);
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setImageUrl("");
+  }, []);
+
+  const clearImage = useCallback(() => {
+    setImageFile(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    setImageUrl("");
+  }, [imagePreview]);
+
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
-      if (!post.trim()) return;
+      if (!question.trim()) return;
       setError(null);
       setResult(null);
       setLoading(true);
       try {
-        const data = await explainPost({
-          post_content: post.trim(),
-          image_url: imageUrl.trim() || null,
-          context_limit: 10,
-        });
+        let data;
+        if (imageFile) {
+          const formData = new FormData();
+          formData.append("question", question.trim());
+          formData.append("sources_type", sourcesType);
+          formData.append("context_limit", "10");
+          formData.append("debug", "false");
+          formData.append("image", imageFile);
+          data = await askWithUpload(formData);
+        } else {
+          data = await ask({
+            question: question.trim(),
+            image_url: imageUrl.trim() || null,
+            sources_type: sourcesType,
+            context_limit: 10,
+          });
+        }
         setResult(data);
-        onResult?.();
       } catch (err) {
         setError(err.response?.data?.detail || err.message || "Request failed");
       } finally {
         setLoading(false);
       }
     },
-    [post, imageUrl, onResult]
+    [question, imageUrl, imageFile, sourcesType]
   );
 
   const sources = result?.sources || [];
@@ -112,33 +143,70 @@ function ExplainFlow({ onResult }) {
   return (
     <form onSubmit={handleSubmit}>
       <div className="card">
-        <h2 className="card-title">Paste a post</h2>
+        <h2 className="card-title">Ask with context</h2>
         <textarea
           className="textarea"
-          value={post}
-          onChange={(e) => setPost(e.target.value)}
-          placeholder="e.g. The Ralph Wiggum technique is undefeated. Just bash-loop it until it works."
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Paste your post/question here..."
           rows={4}
           disabled={loading}
         />
+        <div className="select-wrap">
+          <label htmlFor="sources-type">Sources to search</label>
+          <select
+            id="sources-type"
+            className="select"
+            value={sourcesType}
+            onChange={(e) => setSourcesType(e.target.value)}
+            disabled={loading}
+          >
+            <option value="all">All (vector DB + web + social + news)</option>
+            <option value="social">Social only (Reddit, Twitter)</option>
+            <option value="news">News only</option>
+          </select>
+        </div>
         <input
           type="url"
           className="input"
           value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="Optional: image URL"
+          onChange={(e) => {
+            setImageUrl(e.target.value);
+            if (e.target.value) {
+              setImageFile(null);
+              if (imagePreview) URL.revokeObjectURL(imagePreview);
+              setImagePreview(null);
+            }
+          }}
+          placeholder="Optional: direct image URL"
           disabled={loading}
           style={{ marginTop: "0.75rem" }}
         />
-        <p className="input-optional">Optional image URL for vision context</p>
-        <button type="submit" className="btn" disabled={loading || !post.trim()}>
+        <label className="file-label" style={{ marginTop: "0.6rem", display: "inline-flex" }}>
+          <span className="file-label-text">Or upload image</span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={onImageFileChange}
+            disabled={loading}
+            className="file-input"
+          />
+        </label>
+        {imagePreview && (
+          <div className="image-preview-wrap">
+            <img src={imagePreview} alt="Preview" className="image-preview" />
+            <button type="button" onClick={clearImage} className="image-clear">Remove</button>
+          </div>
+        )}
+        <p className="input-optional">Use a direct image URL or upload an image file.</p>
+        <button type="submit" className="btn" disabled={loading || !question.trim()}>
           {loading ? (
             <>
               <span className="loading-spinner" style={{ width: 18, height: 18, margin: 0 }} />
-              Explaining…
+              Processing…
             </>
           ) : (
-            <>Explain this post</>
+            <>Ask</>
           )}
         </button>
       </div>
@@ -152,7 +220,7 @@ function ExplainFlow({ onResult }) {
       {loading && (
         <div className="card loading">
           <div className="loading-spinner" />
-          <p className="loading-text">Searching context & generating explanation…</p>
+          <p className="loading-text">Searching context & generating answer…</p>
         </div>
       )}
 
@@ -223,179 +291,14 @@ function ExplainFlow({ onResult }) {
   );
 }
 
-function QAFlow({ onResult }) {
-  const [question, setQuestion] = useState("");
-  const [sourcesType, setSourcesType] = useState("all");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-  const [highlightedSource, setHighlightedSource] = useState(null);
-
-  const handleSubmit = useCallback(
-    async (e) => {
-      e.preventDefault();
-      if (!question.trim()) return;
-      setError(null);
-      setResult(null);
-      setLoading(true);
-      try {
-        const data = await socialQA({
-          question: question.trim(),
-          sources_type: sourcesType,
-        });
-        setResult(data);
-        onResult?.();
-      } catch (err) {
-        setError(err.response?.data?.detail || err.message || "Request failed");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [question, sourcesType, onResult]
-  );
-
-  const sources = result?.sources || [];
-  const answer = result?.answer;
-  const summary = answer?.summary ?? "";
-  const breakdown = result?.source_breakdown;
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <div className="card">
-        <h2 className="card-title">Ask a question</h2>
-        <textarea
-          className="textarea"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder="e.g. What are people saying about the Ralph Wiggum technique?"
-          rows={3}
-          disabled={loading}
-        />
-        <div className="select-wrap">
-          <label htmlFor="sources-type">Sources to search</label>
-          <select
-            id="sources-type"
-            className="select"
-            value={sourcesType}
-            onChange={(e) => setSourcesType(e.target.value)}
-            disabled={loading}
-          >
-            <option value="all">All (docs + web + social + news)</option>
-            <option value="social">Social only (Reddit, Twitter)</option>
-            <option value="news">News only</option>
-          </select>
-        </div>
-        <button type="submit" className="btn" disabled={loading || question.trim().length < 3}>
-          {loading ? (
-            <>
-              <span className="loading-spinner" style={{ width: 18, height: 18, margin: 0 }} />
-              Searching…
-            </>
-          ) : (
-            <>Get answer</>
-          )}
-        </button>
-      </div>
-
-      {error && (
-        <div className="error-box" role="alert">
-          {error}
-        </div>
-      )}
-
-      {loading && (
-        <div className="card loading">
-          <div className="loading-spinner" />
-          <p className="loading-text">Searching sources & synthesizing answer…</p>
-        </div>
-      )}
-
-      {result && !loading && (
-        <div className="result">
-          <p className="meta">
-            {result.processing_time_ms != null &&
-              `${(result.processing_time_ms / 1000).toFixed(2)}s`}
-            {breakdown?.combined_total != null && ` · ${breakdown.combined_total} sources`}
-          </p>
-          {breakdown?.platforms && Object.keys(breakdown.platforms).length > 0 && (
-            <div className="breakdown">
-              {Object.entries(breakdown.platforms).map(([platform, count]) => (
-                <span key={platform} className={`breakdown-pill ${sourcePlatformClass(platform)}`}>
-                  {sourcePlatformLabel(platform)}: {count}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="answer-summary">
-            {summary.split("\n").map((para, i) => (
-              <p key={i} style={{ margin: i > 0 ? "0.75rem 0 0" : 0 }}>
-                {para}
-              </p>
-            ))}
-          </div>
-          {sources.length > 0 && (
-            <div className="card" style={{ marginTop: "1rem" }}>
-              <h2 className="card-title">Sources</h2>
-              <div className="sources-grid">
-                {sources.map((src, i) => (
-                  <div
-                    key={i}
-                    className={`source-card ${sourcePlatformClass(src.platform)} ${highlightedSource === i + 1 ? "highlight" : ""}`}
-                    onMouseEnter={() => setHighlightedSource(i + 1)}
-                    onMouseLeave={() => setHighlightedSource(null)}
-                  >
-                    <span className="platform-tag">{sourcePlatformLabel(src.platform)}</span>
-                    <h3 className="title">{src.title}</h3>
-                    <p className="context">{src.context}</p>
-                    {src.url && src.platform !== "vector_db" && (
-                      <a href={src.url} target="_blank" rel="noopener noreferrer">
-                        View source
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </form>
-  );
-}
-
 export default function App() {
-  const [mode, setMode] = useState(MODES.explain);
-
   return (
     <div className="app">
       <header className="header">
         <h1 className="logo">Contextual Post Explainer</h1>
-        <p className="subtitle">Explain social posts with context & citations</p>
+        <p className="subtitle">One endpoint: text + sources filter + image URL/upload</p>
       </header>
-
-      <div className="tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === MODES.explain}
-          className={`tab ${mode === MODES.explain ? "active" : ""}`}
-          onClick={() => setMode(MODES.explain)}
-        >
-          Explain a post
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === MODES.qa}
-          className={`tab ${mode === MODES.qa ? "active" : ""}`}
-          onClick={() => setMode(MODES.qa)}
-        >
-          Social Q&A
-        </button>
-      </div>
-
-      {mode === MODES.explain && <ExplainFlow />}
-      {mode === MODES.qa && <QAFlow />}
+      <AskFlow />
     </div>
   );
 }

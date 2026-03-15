@@ -486,6 +486,66 @@
   animation: fadeIn 0.3s ease;
 }
 
+/* Upload controls */
+.file-label {
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.file-label-text {
+  padding: 0.4rem 0.75rem;
+  background: rgba(228, 168, 83, 0.12);
+  border: 1px solid rgba(228, 168, 83, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.file-label:hover .file-label-text {
+  background: rgba(228, 168, 83, 0.18);
+  border-color: rgba(228, 168, 83, 0.45);
+}
+
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.image-preview-wrap {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.image-preview {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.image-clear {
+  padding: 0.35rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.image-clear:hover {
+  border-color: var(--error);
+  color: var(--error);
+}
+
 /* Image preview */
 .image-preview {
   margin-top: 0.75rem;
