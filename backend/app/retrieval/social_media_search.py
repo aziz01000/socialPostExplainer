@@ -150,14 +150,15 @@ class ExternalSourcesSearch:
     
     async def _search_twitter(self, query: str, limit: int) -> List[Dict]:
         """Search Twitter/X using free tier API."""
-        if not self.twitter_bearer_token:
+        token = (self.twitter_bearer_token or "").strip()
+        if not token:
             logger.warning("Twitter API bearer token not configured")
             return []
-        
+
         try:
             url = "https://api.twitter.com/2/tweets/search/recent"
             headers = {
-                "Authorization": f"Bearer {self.twitter_bearer_token}",
+                "Authorization": f"Bearer {token}",
                 "User-Agent": "RapidCanvas/1.0"
             }
             params = {

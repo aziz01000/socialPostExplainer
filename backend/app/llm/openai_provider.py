@@ -20,14 +20,16 @@ class OpenAIProvider:
         logger.info(f"Initializing OpenAI provider with model: {self.model}")
         logger.info(f"Base URL: {self.base_url}")
         
+        self.api_key = (self.api_key or "").strip() or None
         if not self.api_key:
             logger.error("✗ OpenAI API key not configured")
         else:
             logger.info("✓ OpenAI API key configured")
-        
-        self.client = httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {self.api_key}"}
-        )
+
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        self.client = httpx.AsyncClient(headers=headers)
     
     async def generate_embeddings(self, texts: List[str], model: str = "text-embedding-3-small") -> List[List[float]]:
         """Generate embeddings for texts."""
